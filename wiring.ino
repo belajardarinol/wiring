@@ -109,8 +109,8 @@ void setup(){
   // Inisialisasi Display
   display1.setBrightness(0x0f);
   display2.setBrightness(0x0f);
-  display1.showNumberDec(0, false);
-  display2.showNumberDec((int)setpointTemp, false);
+  display1.showNumberDec((int)setpointTemp, false);
+  display2.showNumberDec(0, false);
   
   Serial.println("Inisialisasi selesai!");
   Serial.println("Setpoint default: 80°C (Range: 60-100°C)");
@@ -185,8 +185,12 @@ void temperatureControl() {
 
 // Update display
 void updateDisplay() {
-  display1.showNumberDec((int)currentTemp, false);
-  display2.showNumberDec((int)setpointTemp, false);
+  display2.showNumberDec((int)currentTemp, false);
+  if (inputCode.length() > 0) {
+    display1.showNumberDec(inputCode.toInt(), false);
+  } else {
+    display1.showNumberDec((int)setpointTemp, false);
+  }
 }
 
 // ========================================
@@ -207,6 +211,7 @@ void loop(){
         inputCode += key;
         Serial.print("Input code: ");
         Serial.println(inputCode);
+        display1.showNumberDec(inputCode.toInt(), false);
         
         // Jika sudah 2 digit, validasi
         if (inputCode.length() >= 2) {
@@ -232,6 +237,7 @@ void loop(){
       if (key == 'C') {
         inputCode = "";
         Serial.println("Input direset");
+        display1.showNumberDec((int)setpointTemp, false);
       }
     } 
     else {
@@ -239,6 +245,7 @@ void loop(){
       // Tombol untuk mengubah setpoint
       if (key >= '0' && key <= '9') {
         inputCode += key;
+        display1.showNumberDec(inputCode.toInt(), false);
         if (inputCode.length() >= 2) {
           if (validateCode(inputCode)) {
             Serial.print("Setpoint diubah ke: ");
@@ -266,6 +273,7 @@ void loop(){
       // Tombol C untuk reset input
       if (key == 'C') {
         inputCode = "";
+        display1.showNumberDec((int)setpointTemp, false);
       }
     }
   }
