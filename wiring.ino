@@ -43,7 +43,7 @@ int led_status6 = 2;      // LED status 6
 // Global Variables
 // ========================================
 float currentTemp = 0;
-float setpointTemp = 80.0;  // Default setpoint 80°C (range 60-100)
+float setpointTemp = 30.0;  // Default setpoint 80°C (range 60-100)
 String inputCode = "";
 bool isAuthenticated = false;
 bool systemActive = false;
@@ -113,7 +113,9 @@ void setup(){
   display2.showNumberDec(0, false);
   
   Serial.println("Inisialisasi selesai!");
-  Serial.println("Setpoint default: 80°C (Range: 60-100°C)");
+  Serial.print("Setpoint default: ");
+  Serial.print(setpointTemp);
+  Serial.println("°C (Range: 20-100°C)");
   Serial.println("Masukkan kode akses untuk memulai...");
   
   // ========================================
@@ -145,10 +147,9 @@ void setup(){
 // Helper Functions
 // ========================================
 
-// Validasi kode akses (range 60-100)
 bool validateCode(String code) {
   int codeNum = code.toInt();
-  if (codeNum >= 60 && codeNum <= 100) {
+  if (codeNum >= 20 && codeNum <= 100) {
     setpointTemp = (float)codeNum;
     return true;
   }
@@ -224,7 +225,7 @@ void loop(){
             Serial.println("°C");
             digitalWrite(led_status3, HIGH);  // LED sistem aktif
           } else {
-            Serial.println("Kode tidak valid! (Range: 60-100)");
+            Serial.println("Kode tidak valid! (Range: 20-100)");
             digitalWrite(led_status4, HIGH);  // LED error
             delay(1000);
             digitalWrite(led_status4, LOW);
