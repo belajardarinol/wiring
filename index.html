@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -342,6 +343,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="app">
     <div class="controller">
@@ -507,19 +509,39 @@
       }
     }
 
-    setInterval(() => {
-      const temp = (25 + Math.random() * 5).toFixed(1)
-      if (!currentInput && selectedMenu === 0) {
-        mainDisplay.textContent = temp
-      }
-    }, 3000)
+    const apiEndpoint = 'api/status.php'
+    async function fetchStatus() {
+      try {
+        const res = await fetch(apiEndpoint, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data) return
+        const telemetry = data.telemetry || {}
+        const config = data.config || {}
 
-    const indicators = ['alarm', 'heat', 'fan1', 'fan2', 'fan3', 'fan4', 'fan5', 'cool']
-    setInterval(() => {
-      const randomIndicator = indicators[Math.floor(Math.random() * indicators.length)]
-      const element = document.getElementById(randomIndicator)
-      element.classList.toggle('active')
-    }, 5000)
+        const temp = typeof telemetry.temp === 'number' ? telemetry.temp : null
+        const setpoint = typeof telemetry.setpoint === 'number' ? telemetry.setpoint : (typeof config.setpoint === 'number' ? config.setpoint : null)
+
+        if (temp !== null && !currentInput && selectedMenu === 0) {
+          mainDisplay.textContent = temp.toFixed(1)
+        }
+
+        if (typeof config.setpoint === 'number' && selectedMenu === 0) {
+          smallDisplay.textContent = Math.round(config.setpoint).toString().padStart(2, '0')
+        }
+
+        if (temp !== null && setpoint !== null) {
+          const heatActive = temp < (setpoint - 2)
+          const coolActive = temp > (setpoint + 2)
+          document.getElementById('heat').classList.toggle('active', heatActive)
+          document.getElementById('cool').classList.toggle('active', coolActive)
+        }
+      } catch (e) { }
+    }
+
+    setInterval(fetchStatus, 5000)
+    fetchStatus()
   </script>
 </body>
+
 </html>

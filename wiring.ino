@@ -8,16 +8,19 @@
 #include <Wire.h>
 #include <TM1637Display.h>
 #include <DHT.h>
+#include <HTTPClient.h>
 
 // ========================================
 // WiFi Configuration (COMMENTED FOR LATER)
 // ========================================
-// #include <WiFi.h>
+ #include <WiFi.h>
 // #include <ESPAsyncWebServer.h>
 // #include "webpage.h"
-// const char* ssid = "Sejahtera";
-// const char* password = "presiden sekarang";
+ const char* ssid = "Sejahtera";
+ const char* password = "presiden sekarang";
 // AsyncWebServer server(80);
+const char* apiTelemetry = "http://your-domain-or-ip/api/telemetry.php";
+const char* apiConfig = "http://your-domain-or-ip/api/config.php";
 
 // ========================================
 // Pin Definitions
@@ -48,6 +51,10 @@ String inputCode = "";
 bool systemActive = false;
 unsigned long lastReadTime = 0;
 const unsigned long readInterval = 2000; // Baca sensor setiap 2 detik
+unsigned long lastPostTime = 0;
+const unsigned long postInterval = 10000;
+unsigned long lastConfigFetchTime = 0;
+const unsigned long configFetchInterval = 30000;
 
 // ========================================
 // Menu Parameters (16 Menu)
@@ -181,15 +188,15 @@ void setup(){
   // ========================================
   // WiFi Setup (COMMENTED FOR LATER)
   // ========================================
-  // Serial.println("Connecting to WiFi...");
-  // WiFi.begin(ssid, password);
-  // while (WiFi.status() != WL_CONNECTED) {
-  //   delay(1000);
-  //   Serial.println("Connecting...");
-  // }
-  // Serial.println("Connected to WiFi");
-  // Serial.print("IP Address: ");
-  // Serial.println(WiFi.localIP());
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
   //
   // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
   //   request->send_P(200, "text/html", index_html);
@@ -329,6 +336,45 @@ bool validateAndSaveInput(String code, int menuNum) {
   }
   
   return valid;
+}
+
+void postTelemetry(float temp, float humidity, float setpoint) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(apiTelemetry);
+  http.addHeader("Content-Type", "application/json");
+  String mac = WiFi.macAddress();
+  String payload = String("{\"device_id\":\"") + mac + "\",\"temp\":" + String(temp, 1) + ",\"humidity\":" + String(humidity, 1) + ",\"setpoint\":" + String(setpoint, 1) + "}";
+  http.POST(payload);
+  http.end();
+}
+
+void fetchConfig() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(apiConfig);
+  int code = http.GET();
+  if (code == 200) {
+    String body = http.getString();
+    int idx = body.indexOf("\"setpoint\"");
+    if (idx >= 0) {
+      int colon = body.indexOf(':', idx);
+      if (colon >= 0) {
+        int j = colon + 1;
+        while (j < (int)body.length() && body[j] == ' ') j++;
+        int k = j;
+        while (k < (int)body.length()) {
+          char c = body[k];
+          if ((c >= '0' && c <= '9') || c == '.' || c == '-') { k++; } else { break; }
+        }
+        if (k > j) {
+          float val = body.substring(j, k).toFloat();
+          if (val >= 20 && val <= 100) { setpointTemp = val; }
+        }
+      }
+    }
+  }
+  http.end();
 }
 
 // Tampilkan menu di display
@@ -638,6 +684,17 @@ void loop(){
     if (systemActive) {
       temperatureControl();
       checkAlarm();  // Cek alarm batas suhu
+    }
+  }
+  unsigned long now = millis();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (now - lastPostTime >= postInterval) {
+      postTelemetry(currentTemp, currentHumidity, setpointTemp);
+      lastPostTime = now;
+    }
+    if (now - lastConfigFetchTime >= configFetchInterval) {
+      fetchConfig();
+      lastConfigFetchTime = now;
     }
   }
   
