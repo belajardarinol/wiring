@@ -9,15 +9,16 @@
 #include <TM1637Display.h>
 #include <DHT.h>
 #include <HTTPClient.h>
+#include <EEPROM.h>
 
 // ========================================
 // WiFi Configuration (COMMENTED FOR LATER)
 // ========================================
- #include <WiFi.h>
+#include <WiFi.h>
 // #include <ESPAsyncWebServer.h>
 // #include "webpage.h"
- const char* ssid = "Sejahtera";
- const char* password = "presiden sekarang";
+const char* ssid = "Sejahtera";
+const char* password = "presiden sekarang";
 // AsyncWebServer server(80);
 const char* apiTelemetry = "http://your-domain-or-ip/api/telemetry.php";
 const char* apiConfig = "http://your-domain-or-ip/api/config.php";
@@ -55,6 +56,34 @@ unsigned long lastPostTime = 0;
 const unsigned long postInterval = 10000;
 unsigned long lastConfigFetchTime = 0;
 const unsigned long configFetchInterval = 30000;
+
+const int EEPROM_SIZE = 512;
+const uint16_t CONFIG_MAGIC = 0x607A;
+
+struct ConfigData {
+  uint16_t magic;
+  float setpointTemp;
+  float heatTemp;
+  float coolTemp;
+  bool fan1_enabled;
+  bool fan2_enabled;
+  bool fan3_enabled;
+  bool fan4_enabled;
+  int timerOn;
+  int timerOff;
+  float humiditySetpoint;
+  int coolOnDelay;
+  int coolOffDelay;
+  float lowerLimit;
+  float upperLimit;
+  int alarmDelay;
+  int displayBrightness;
+};
+
+ConfigData config;
+
+void saveConfig();
+bool loadConfig();
 
 // ========================================
 // Menu Parameters (16 Menu)
@@ -152,6 +181,8 @@ void setup(){
   
   // Inisialisasi DHT Sensor
   dht.begin();
+  EEPROM.begin(EEPROM_SIZE);
+  loadConfig();
   
   // Setup pin relay dan LED sebagai OUTPUT
   pinMode(relay_heater, OUTPUT);
@@ -174,8 +205,8 @@ void setup(){
   digitalWrite(led_status6, LOW);
   
   // Inisialisasi Display
-  display1.setBrightness(0x0f);
-  display2.setBrightness(0x0f);
+  display1.setBrightness(displayBrightness);
+  display2.setBrightness(displayBrightness);
   display1.showNumberDec((int)setpointTemp, false);
   display2.showNumberDec(0, false);
   
@@ -335,6 +366,7 @@ bool validateAndSaveInput(String code, int menuNum) {
       break;
   }
   
+  if (valid) { saveConfig(); }
   return valid;
 }
 
@@ -434,6 +466,56 @@ void showMenu() {
       break;
   }
 }
+
+ void saveConfig() {
+   config.magic = CONFIG_MAGIC;
+   config.setpointTemp = setpointTemp;
+   config.heatTemp = heatTemp;
+   config.coolTemp = coolTemp;
+   config.fan1_enabled = fan1_enabled;
+   config.fan2_enabled = fan2_enabled;
+   config.fan3_enabled = fan3_enabled;
+   config.fan4_enabled = fan4_enabled;
+   config.timerOn = timerOn;
+   config.timerOff = timerOff;
+   config.humiditySetpoint = humiditySetpoint;
+   config.coolOnDelay = coolOnDelay;
+   config.coolOffDelay = coolOffDelay;
+   config.lowerLimit = lowerLimit;
+   config.upperLimit = upperLimit;
+   config.alarmDelay = alarmDelay;
+   config.displayBrightness = displayBrightness;
+   EEPROM.put(0, config);
+   EEPROM.commit();
+ }
+
+ bool loadConfig() {
+   EEPROM.get(0, config);
+   if (config.magic == CONFIG_MAGIC) {
+     setpointTemp = config.setpointTemp;
+     heatTemp = config.heatTemp;
+     coolTemp = config.coolTemp;
+     fan1_enabled = config.fan1_enabled;
+     fan2_enabled = config.fan2_enabled;
+     fan3_enabled = config.fan3_enabled;
+     fan4_enabled = config.fan4_enabled;
+     timerOn = config.timerOn;
+     timerOff = config.timerOff;
+     humiditySetpoint = config.humiditySetpoint;
+     coolOnDelay = config.coolOnDelay;
+     coolOffDelay = config.coolOffDelay;
+     lowerLimit = config.lowerLimit;
+     upperLimit = config.upperLimit;
+     alarmDelay = config.alarmDelay;
+     displayBrightness = config.displayBrightness;
+     display1.setBrightness(displayBrightness);
+     display2.setBrightness(displayBrightness);
+     return true;
+   } else {
+     saveConfig();
+     return false;
+   }
+ }
 
 // Cek alarm batas suhu
 void checkAlarm() {
