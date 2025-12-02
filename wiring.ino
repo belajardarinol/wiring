@@ -20,8 +20,9 @@
 const char* ssid = "Sejahtera";
 const char* password = "presiden sekarang";
 // AsyncWebServer server(80);
-const char* apiTelemetry = "http://your-domain-or-ip/api/telemetry.php";
-const char* apiConfig = "http://your-domain-or-ip/api/config.php";
+const char* apiTelemetry = "https://malik.ifailamir.my.id/api/telemetry.php";
+const char* apiConfig = "https://malik.ifailamir.my.id/api/config.php";
+const char* apiManual   = "https://malik.ifailamir.my.id/api/manual.php";
 
 // ========================================
 // Pin Definitions
@@ -34,14 +35,14 @@ const char* apiConfig = "http://your-domain-or-ip/api/config.php";
 #define DHTTYPE DHT11
 
 // Relay/LED pins untuk kontrol
-int relay_heater = 14;    // Relay untuk pemanas
-int relay_cooler = 12;    // Relay untuk pendingin
-int led_status1 = 13;     // LED status 1
-int led_status2 = 5;      // LED status 2
-int led_status3 = 23;     // LED status 3
-int led_status4 = 19;     // LED status 4
-int led_status5 = 18;     // LED status 5
-int led_status6 = 2;      // LED status 6
+int relay_heater = 14;    // Heater 7 (aktif saat suhu -2°C dari setpoint)
+int relay_cooler = 12;    // Heater 8 (aktif saat suhu -4°C dari setpoint)
+int led_status1 = 13;     // Kipas 1 (aktif saat suhu +1°C dari setpoint)
+int led_status2 = 5;      // Kipas 2 (aktif saat suhu +2°C dari setpoint)
+int led_status3 = 23;     // Kipas 3 (aktif saat suhu +3°C dari setpoint)
+int led_status4 = 19;     // Kipas 4 (aktif saat suhu +4°C dari setpoint)
+int led_status5 = 18;     // Kipas 5 (aktif saat suhu +5°C dari setpoint)
+int led_status6 = 2;      // Kipas 6 (aktif saat suhu +6°C dari setpoint)
 
 // ========================================
 // Global Variables
@@ -56,6 +57,8 @@ unsigned long lastPostTime = 0;
 const unsigned long postInterval = 10000;
 unsigned long lastConfigFetchTime = 0;
 const unsigned long configFetchInterval = 30000;
+unsigned long lastManualFetchTime = 0;
+const unsigned long manualFetchInterval = 1000;
 
 const int EEPROM_SIZE = 512;
 const uint16_t CONFIG_MAGIC = 0x607A;
@@ -133,6 +136,19 @@ int displayBrightness = 15; // Default 15 (0x0f), range 0-15
 
 // Alarm state
 bool alarmTriggered = false;
+
+// ========================================
+// Manual Control State
+// ========================================
+bool manualMode = false;  // true = kontrol dari web override otomatis
+int manual_fan1 = 0;
+int manual_fan2 = 0;
+int manual_fan3 = 0;
+int manual_fan4 = 0;
+int manual_fan5 = 0;
+int manual_fan6 = 0;
+int manual_heater7 = 0;
+int manual_cooling = 0;
 
 // ========================================
 // Menu System Variables
@@ -409,6 +425,47 @@ void fetchConfig() {
   http.end();
 }
 
+int parseJsonInt(String body, const char* key, int defaultVal) {
+  int idx = body.indexOf(key);
+  if (idx < 0) return defaultVal;
+  int colon = body.indexOf(':', idx);
+  if (colon < 0) return defaultVal;
+  int j = colon + 1;
+  while (j < (int)body.length() && (body[j] == ' ' || body[j] == '\t')) j++;
+  if (j >= (int)body.length()) return defaultVal;
+  char c = body[j];
+  if (c == '1') return 1;
+  if (c == '0') return 0;
+  return defaultVal;
+}
+
+void fetchManualControl() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(apiManual);
+  int code = http.GET();
+  if (code == 200) {
+    String body = http.getString();
+    bool prevManual = manualMode;
+    int m = parseJsonInt(body, "\"manual\"", manualMode ? 1 : 0);
+    manualMode = (m == 1);
+    if (manualMode != prevManual) {
+      Serial.print("Manual mode changed to: ");
+      Serial.println(manualMode ? "ON" : "OFF");
+    }
+
+    manual_fan1 = parseJsonInt(body, "\"fan1\"", manual_fan1);
+    manual_fan2 = parseJsonInt(body, "\"fan2\"", manual_fan2);
+    manual_fan3 = parseJsonInt(body, "\"fan3\"", manual_fan3);
+    manual_fan4 = parseJsonInt(body, "\"fan4\"", manual_fan4);
+    manual_fan5 = parseJsonInt(body, "\"fan5\"", manual_fan5);
+    manual_fan6 = parseJsonInt(body, "\"fan6\"", manual_fan6);
+    manual_heater7 = parseJsonInt(body, "\"heater7\"", manual_heater7);
+    manual_cooling = parseJsonInt(body, "\"cooling\"", manual_cooling);
+  }
+  http.end();
+}
+
 // Tampilkan menu di display
 void showMenu() {
   // Display1 (besar) menampilkan nomor menu dengan leading zero
@@ -522,7 +579,13 @@ void checkAlarm() {
   if (currentTemp > upperLimit || currentTemp < lowerLimit) {
     if (!alarmTriggered) {
       alarmTriggered = true;
-      digitalWrite(led_status5, HIGH);  // LED alarm ON
+      // Semua LED nyala bersamaan saat alarm
+      digitalWrite(led_status1, HIGH);
+      digitalWrite(led_status2, HIGH);
+      digitalWrite(led_status3, HIGH);
+      digitalWrite(led_status4, HIGH);
+      digitalWrite(led_status5, HIGH);
+      digitalWrite(led_status6, HIGH);
       Serial.println("ALARM: Suhu di luar batas!");
       Serial.print("Batas: ");
       Serial.print(lowerLimit);
@@ -533,37 +596,172 @@ void checkAlarm() {
   } else {
     if (alarmTriggered) {
       alarmTriggered = false;
-      digitalWrite(led_status5, LOW);  // LED alarm OFF
+      // Semua LED mati bersamaan saat alarm clear
+      digitalWrite(led_status1, LOW);
+      digitalWrite(led_status2, LOW);
+      digitalWrite(led_status3, LOW);
+      digitalWrite(led_status4, LOW);
+      digitalWrite(led_status5, LOW);
+      digitalWrite(led_status6, LOW);
       Serial.println("Alarm cleared: Suhu kembali normal");
     }
   }
 }
 
-// Kontrol suhu berdasarkan setpoint
+// Terapkan kontrol manual ke relay dan LED
+void applyManualControl() {
+  // Heater & Cooling
+  digitalWrite(relay_heater, manual_heater7 ? HIGH : LOW);
+  digitalWrite(relay_cooler, manual_cooling ? HIGH : LOW);
+
+  // Kipas 1-6
+  digitalWrite(led_status1, manual_fan1 ? HIGH : LOW);
+  digitalWrite(led_status2, manual_fan2 ? HIGH : LOW);
+  digitalWrite(led_status3, manual_fan3 ? HIGH : LOW);
+  digitalWrite(led_status4, manual_fan4 ? HIGH : LOW);
+  digitalWrite(led_status5, manual_fan5 ? HIGH : LOW);
+  digitalWrite(led_status6, manual_fan6 ? HIGH : LOW);
+
+  Serial.print("MANUAL CONTROL -> Heater:");
+  Serial.print(manual_heater7);
+  Serial.print(" Cooling:");
+  Serial.print(manual_cooling);
+  Serial.print(" | F1:");
+  Serial.print(manual_fan1);
+  Serial.print(" F2:");
+  Serial.print(manual_fan2);
+  Serial.print(" F3:");
+  Serial.print(manual_fan3);
+  Serial.print(" F4:");
+  Serial.print(manual_fan4);
+  Serial.print(" F5:");
+  Serial.print(manual_fan5);
+  Serial.print(" F6:");
+  Serial.println(manual_fan6);
+}
+
+// Kontrol suhu berdasarkan setpoint dengan logika bertingkat
 void temperatureControl() {
-  if (currentTemp < setpointTemp - 2) {
-    // Suhu di bawah setpoint - Aktifkan Heater
+  float diff = currentTemp - setpointTemp;
+  
+  // ========================================
+  // COOLING: Kipas 1-6 bertingkat + Relay Cooling
+  // ========================================
+  if (diff >= 7.0) {
+    // +7°C atau lebih: Semua kipas ON + Relay Cooling ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, HIGH);
+    digitalWrite(led_status4, HIGH);
+    digitalWrite(led_status5, HIGH);
+    digitalWrite(led_status6, HIGH);
+    digitalWrite(relay_cooler, HIGH);  // Main Cooling ON
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 7 (All fans + Main Cooling ON)");
+  }
+  else if (diff >= 6.0) {
+    // +6°C: Semua kipas ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, HIGH);
+    digitalWrite(led_status4, HIGH);
+    digitalWrite(led_status5, HIGH);
+    digitalWrite(led_status6, HIGH);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 6 (All fans ON)");
+  }
+  else if (diff >= 5.0) {
+    // +5°C: Kipas 1-5 ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, HIGH);
+    digitalWrite(led_status4, HIGH);
+    digitalWrite(led_status5, HIGH);
+    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 5");
+  }
+  else if (diff >= 4.0) {
+    // +4°C: Kipas 1-4 ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, HIGH);
+    digitalWrite(led_status4, HIGH);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 4");
+  }
+  else if (diff >= 3.0) {
+    // +3°C: Kipas 1-3 ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, HIGH);
+    digitalWrite(led_status4, LOW);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 3");
+  }
+  else if (diff >= 2.0) {
+    // +2°C: Kipas 1-2 ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, HIGH);
+    digitalWrite(led_status3, LOW);
+    digitalWrite(led_status4, LOW);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 2");
+  }
+  else if (diff >= 1.0) {
+    // +1°C: Kipas 1 ON
+    digitalWrite(led_status1, HIGH);
+    digitalWrite(led_status2, LOW);
+    digitalWrite(led_status3, LOW);
+    digitalWrite(led_status4, LOW);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_cooler, LOW);
+    digitalWrite(relay_heater, LOW);
+    Serial.println("Status: COOLING LEVEL 1");
+  }
+  
+  // ========================================
+  // HEATING: Heater bertingkat
+  // ========================================
+  else if (diff <= -2.0) {
+    // -2°C atau lebih dingin: Heater ON
     digitalWrite(relay_heater, HIGH);
     digitalWrite(relay_cooler, LOW);
-    digitalWrite(led_status1, HIGH);  // LED heater ON
-    digitalWrite(led_status2, LOW);   // LED cooler OFF
-    Serial.println("Status: HEATING");
-  } 
-  else if (currentTemp > setpointTemp + 2) {
-    // Suhu di atas setpoint - Aktifkan Cooler
-    digitalWrite(relay_heater, LOW);
-    digitalWrite(relay_cooler, HIGH);
-    digitalWrite(led_status1, LOW);   // LED heater OFF
-    digitalWrite(led_status2, HIGH);  // LED cooler ON
-    Serial.println("Status: COOLING");
-  } 
+    digitalWrite(led_status1, LOW);
+    digitalWrite(led_status2, LOW);
+    digitalWrite(led_status3, LOW);
+    digitalWrite(led_status4, LOW);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    Serial.println("Status: HEATING (Heater ON)");
+  }
+  
+  // ========================================
+  // OPTIMAL: Semua OFF
+  // ========================================
   else {
-    // Suhu optimal - Matikan semua
+    // Suhu dalam range optimal (-2 sampai +1)
     digitalWrite(relay_heater, LOW);
     digitalWrite(relay_cooler, LOW);
     digitalWrite(led_status1, LOW);
     digitalWrite(led_status2, LOW);
-    Serial.println("Status: OPTIMAL");
+    digitalWrite(led_status3, LOW);
+    digitalWrite(led_status4, LOW);
+    digitalWrite(led_status5, LOW);
+    digitalWrite(led_status6, LOW);
+    Serial.println("Status: OPTIMAL (All OFF)");
   }
 }
 
@@ -762,10 +960,14 @@ void loop(){
     // Update display
     updateDisplay();
     
-    // Kontrol suhu jika sistem aktif
+    // Kontrol jika sistem aktif
     if (systemActive) {
-      temperatureControl();
-      checkAlarm();  // Cek alarm batas suhu
+      if (manualMode) {
+        applyManualControl();
+      } else {
+        temperatureControl();
+        checkAlarm();  // Cek alarm batas suhu
+      }
     }
   }
   unsigned long now = millis();
@@ -777,6 +979,10 @@ void loop(){
     if (now - lastConfigFetchTime >= configFetchInterval) {
       fetchConfig();
       lastConfigFetchTime = now;
+    }
+    if (now - lastManualFetchTime >= manualFetchInterval) {
+      fetchManualControl();
+      lastManualFetchTime = now;
     }
   }
   

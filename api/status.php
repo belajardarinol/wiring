@@ -22,8 +22,8 @@ $config = [
   'setpoint' => 30.0,
   'heatTemp' => 28.0,
   'coolTemp' => 32.0,
-  'lowerLimit' => 25.0,
-  'upperLimit' => 35.0,
+  'lowerLimit' => 20.0,
+  'upperLimit' => 39.0,
   'displayBrightness' => 15
 ];
 if (file_exists($configFile)) {
