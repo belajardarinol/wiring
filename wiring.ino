@@ -621,12 +621,12 @@ void checkAlarm() {
     if (!alarmTriggered) {
       alarmTriggered = true;
       // Semua LED nyala bersamaan saat alarm
-      digitalWrite(led_status1, HIGH);
-      digitalWrite(led_status2, HIGH);
-      digitalWrite(led_status3, HIGH);
-      digitalWrite(led_status4, HIGH);
-      digitalWrite(led_status5, HIGH);
-      digitalWrite(led_status6, HIGH);
+      digitalWrite(led_status1, RELAY_ON);
+      digitalWrite(led_status2, RELAY_ON);
+      digitalWrite(led_status3, RELAY_ON);
+      digitalWrite(led_status4, RELAY_ON);
+      digitalWrite(led_status5, RELAY_ON);
+      digitalWrite(led_status6, RELAY_ON);
       Serial.println("ALARM: Suhu di luar batas!");
       Serial.print("Batas: ");
       Serial.print(lowerLimit);
@@ -638,12 +638,12 @@ void checkAlarm() {
     if (alarmTriggered) {
       alarmTriggered = false;
       // Semua LED mati bersamaan saat alarm clear
-      digitalWrite(led_status1, LOW);
-      digitalWrite(led_status2, LOW);
-      digitalWrite(led_status3, LOW);
-      digitalWrite(led_status4, LOW);
-      digitalWrite(led_status5, LOW);
-      digitalWrite(led_status6, LOW);
+      digitalWrite(led_status1, RELAY_OFF);
+      digitalWrite(led_status2, RELAY_OFF);
+      digitalWrite(led_status3, RELAY_OFF);
+      digitalWrite(led_status4, RELAY_OFF);
+      digitalWrite(led_status5, RELAY_OFF);
+      digitalWrite(led_status6, RELAY_OFF);
       Serial.println("Alarm cleared: Suhu kembali normal");
     }
   }
@@ -690,80 +690,80 @@ void temperatureControl() {
   // ========================================
   if (diff >= 7.0) {
     // +7°C atau lebih: Semua kipas ON + Relay Cooling ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, HIGH);
-    digitalWrite(led_status4, HIGH);
-    digitalWrite(led_status5, HIGH);
-    digitalWrite(led_status6, HIGH);
-    digitalWrite(relay_cooler, HIGH); // Main Cooling ON
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    digitalWrite(led_status6, RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_ON); // Main Cooling ON
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 7 (All fans + Main Cooling ON)");
   } else if (diff >= 6.0) {
     // +6°C: Semua kipas ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, HIGH);
-    digitalWrite(led_status4, HIGH);
-    digitalWrite(led_status5, HIGH);
-    digitalWrite(led_status6, HIGH);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    digitalWrite(led_status6, RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 6 (All fans ON)");
   } else if (diff >= 5.0) {
     // +5°C: Kipas 1-5 ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, HIGH);
-    digitalWrite(led_status4, HIGH);
-    digitalWrite(led_status5, HIGH);
-    digitalWrite(led_status6, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    digitalWrite(led_status6, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 5");
   } else if (diff >= 4.0) {
     // +4°C: Kipas 1-4 ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, HIGH);
-    digitalWrite(led_status4, HIGH);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 4");
   } else if (diff >= 3.0) {
     // +3°C: Kipas 1-3 ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, HIGH);
-    digitalWrite(led_status4, LOW);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 3");
   } else if (diff >= 2.0) {
     // +2°C: Kipas 1-2 ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, HIGH);
-    digitalWrite(led_status3, LOW);
-    digitalWrite(led_status4, LOW);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 2");
   } else if (diff >= 1.0) {
     // +1°C: Kipas 1 ON
-    digitalWrite(led_status1, HIGH);
-    digitalWrite(led_status2, LOW);
-    digitalWrite(led_status3, LOW);
-    digitalWrite(led_status4, LOW);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(relay_heater, LOW);
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_OFF);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 1");
   }
 
@@ -772,14 +772,14 @@ void temperatureControl() {
   // ========================================
   else if (diff <= -2.0) {
     // -2°C atau lebih dingin: Heater ON
-    digitalWrite(relay_heater, HIGH);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(led_status1, LOW);
-    digitalWrite(led_status2, LOW);
-    digitalWrite(led_status3, LOW);
-    digitalWrite(led_status4, LOW);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_heater, RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(led_status1, RELAY_OFF);
+    digitalWrite(led_status2, RELAY_OFF);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
     Serial.println("Status: HEATING (Heater ON)");
   }
 
@@ -788,14 +788,14 @@ void temperatureControl() {
   // ========================================
   else {
     // Suhu dalam range optimal (-2 sampai +1)
-    digitalWrite(relay_heater, LOW);
-    digitalWrite(relay_cooler, LOW);
-    digitalWrite(led_status1, LOW);
-    digitalWrite(led_status2, LOW);
-    digitalWrite(led_status3, LOW);
-    digitalWrite(led_status4, LOW);
-    digitalWrite(led_status5, LOW);
-    digitalWrite(led_status6, LOW);
+    digitalWrite(relay_heater, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(led_status1, RELAY_OFF);
+    digitalWrite(led_status2, RELAY_OFF);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    digitalWrite(led_status6, RELAY_OFF);
     Serial.println("Status: OPTIMAL (All OFF)");
   }
 }
