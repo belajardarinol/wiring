@@ -123,14 +123,29 @@
       box-shadow: 0 0 15px currentColor, inset 0 1px 2px rgba(255, 255, 255, 0.3);
     }
 
-    .led.fan { background: #4ecdc4; }
-    .led.fan.on { background: #4ecdc4; }
-    
-    .led.heater { background: #ff6b6b; }
-    .led.heater.on { background: #ff6b6b; }
-    
-    .led.alarm { background: #ffd93d; }
-    .led.alarm.on { background: #ffd93d; }
+    .led.fan {
+      background: #4ecdc4;
+    }
+
+    .led.fan.on {
+      background: #4ecdc4;
+    }
+
+    .led.heater {
+      background: #ff6b6b;
+    }
+
+    .led.heater.on {
+      background: #ff6b6b;
+    }
+
+    .led.alarm {
+      background: #ffd93d;
+    }
+
+    .led.alarm.on {
+      background: #ffd93d;
+    }
 
     .control-form {
       margin-top: 20px;
@@ -238,8 +253,16 @@
     }
 
     @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0.3; }
+
+      0%,
+      50% {
+        opacity: 1;
+      }
+
+      51%,
+      100% {
+        opacity: 0.3;
+      }
     }
 
     .led.alarm.on {
@@ -250,7 +273,7 @@
       .grid {
         grid-template-columns: 1fr;
       }
-      
+
       .status-grid {
         grid-template-columns: 1fr;
       }
@@ -260,9 +283,13 @@
 
 <body>
   <div class="container">
-    <div class="header">
-      <h1>🌡️ TempTron 607 A-C Dashboard</h1>
-      <p>Temperature Controller - Real-time Monitoring & Control</p>
+    <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>🌡️ TempTron 607 A-C Dashboard</h1>
+        <p>Temperature Controller - Real-time Monitoring & Control</p>
+      </div>
+      <a href="index2.php" class="btn" style="width: auto; text-decoration: none; background: #764ba2;">🎮 Controller
+        View</a>
     </div>
 
     <div class="grid">
@@ -290,7 +317,8 @@
         <form class="control-form" id="setpointForm">
           <div class="form-group">
             <label for="newSetpoint">Set Temperature (20-100°C)</label>
-            <input type="number" id="newSetpoint" name="setpoint" min="20" max="100" step="0.1" placeholder="Enter setpoint">
+            <input type="number" id="newSetpoint" name="setpoint" min="20" max="100" step="0.1"
+              placeholder="Enter setpoint">
           </div>
           <button type="submit" class="btn">Update Setpoint</button>
         </form>
@@ -337,8 +365,8 @@
             <span>Heater 7 (-2°C)</span>
           </div>
           <div class="status-item">
-            <div class="led heater" id="heater8"></div>
-            <span>Heater 8 (-4°C)</span>
+            <div class="led fan" id="cooling"></div>
+            <span>Cooling (-4°C)</span>
           </div>
         </div>
       </div>
@@ -372,14 +400,16 @@
       <!-- Manual Control Panel -->
       <div class="card" style="grid-column: 1 / -1;">
         <h2>🔧 Manual Control (Testing/Maintenance)</h2>
-        <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">⚠️ Gunakan hanya untuk testing. Mode manual akan override kontrol otomatis.</p>
+        <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">⚠️ Gunakan hanya untuk testing. Mode manual akan
+          override kontrol otomatis.</p>
 
         <div class="status-item" style="margin-bottom: 15px;">
           <div class="led" id="manualModeLed" style="background:#ccc;"></div>
           <span id="manualModeText">Mode: AUTO</span>
         </div>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">
+
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">
           <button class="btn-relay" data-relay="fan1" style="background: #4ecdc4;">Fan 1</button>
           <button class="btn-relay" data-relay="fan2" style="background: #4ecdc4;">Fan 2</button>
           <button class="btn-relay" data-relay="fan3" style="background: #4ecdc4;">Fan 3</button>
@@ -387,11 +417,11 @@
           <button class="btn-relay" data-relay="fan5" style="background: #4ecdc4;">Fan 5</button>
           <button class="btn-relay" data-relay="fan6" style="background: #4ecdc4;">Fan 6</button>
           <button class="btn-relay" data-relay="heater7" style="background: #ff6b6b;">Heater 7</button>
-          <button class="btn-relay" data-relay="heater8" style="background: #ff6b6b;">Heater 8</button>
+          <button class="btn-relay" data-relay="cooling" style="background: #3498db;">Cooling</button>
         </div>
 
         <button id="btnStopAll" class="btn" style="background: #e74c3c; margin-bottom: 15px;">⏹️ STOP ALL</button>
-        
+
         <div id="manualMessage"></div>
       </div>
     </div>
@@ -403,7 +433,7 @@
       try {
         const response = await fetch('api/status.php', { cache: 'no-store' });
         if (!response.ok) throw new Error('Network error');
-        
+
         const data = await response.json();
         updateDashboard(data);
       } catch (error) {
@@ -411,6 +441,9 @@
         document.getElementById('systemText').textContent = 'Connection Error';
       }
     }
+
+    // Store manual state globally
+    let manualState = null;
 
     function updateDashboard(data) {
       const telemetry = data.telemetry || {};
@@ -432,28 +465,47 @@
       // Update timestamp
       document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleTimeString();
 
-      // Calculate temperature difference for LED status
-      const temp = telemetry.temp || 0;
-      const setpoint = telemetry.setpoint || config.setpoint || 30;
-      const diff = temp - setpoint;
+      // Check if manual mode is active
+      const isManualMode = manualState && (manualState.manual === 1 || manualState.manual === '1' || manualState.manual === true);
 
-      // Update Fan LEDs (cooling)
-      document.getElementById('fan1').classList.toggle('on', diff >= 1.0);
-      document.getElementById('fan2').classList.toggle('on', diff >= 2.0);
-      document.getElementById('fan3').classList.toggle('on', diff >= 3.0);
-      document.getElementById('fan4').classList.toggle('on', diff >= 4.0);
-      document.getElementById('fan5').classList.toggle('on', diff >= 5.0);
-      document.getElementById('fan6').classList.toggle('on', diff >= 6.0);
+      if (isManualMode && manualState) {
+        // Manual mode: LED follows manual state
+        const s = manualState;
+        const isOn = (val) => val === 1 || val === '1' || val === true;
 
-      // Update Heater LEDs
-      document.getElementById('heater7').classList.toggle('on', diff <= -2.0);
-      document.getElementById('heater8').classList.toggle('on', diff <= -4.0);
+        document.getElementById('fan1').classList.toggle('on', isOn(s.fan1));
+        document.getElementById('fan2').classList.toggle('on', isOn(s.fan2));
+        document.getElementById('fan3').classList.toggle('on', isOn(s.fan3));
+        document.getElementById('fan4').classList.toggle('on', isOn(s.fan4));
+        document.getElementById('fan5').classList.toggle('on', isOn(s.fan5));
+        document.getElementById('fan6').classList.toggle('on', isOn(s.fan6));
+        document.getElementById('heater7').classList.toggle('on', isOn(s.heater7));
+        document.getElementById('cooling').classList.toggle('on', isOn(s.cooling));
+      } else {
+        // Auto mode: LED follows temperature difference
+        const temp = telemetry.temp || 0;
+        const setpoint = telemetry.setpoint || config.setpoint || 30;
+        const diff = temp - setpoint;
+
+        // Update Fan LEDs (cooling)
+        document.getElementById('fan1').classList.toggle('on', diff >= 1.0);
+        document.getElementById('fan2').classList.toggle('on', diff >= 2.0);
+        document.getElementById('fan3').classList.toggle('on', diff >= 3.0);
+        document.getElementById('fan4').classList.toggle('on', diff >= 4.0);
+        document.getElementById('fan5').classList.toggle('on', diff >= 5.0);
+        document.getElementById('fan6').classList.toggle('on', diff >= 6.0);
+
+        // Update Heater LEDs
+        document.getElementById('heater7').classList.toggle('on', diff <= -2.0);
+        document.getElementById('cooling').classList.toggle('on', diff <= -4.0);
+      }
 
       // Update Alarm
+      const temp = telemetry.temp || 0;
       const lowerLimit = config.lowerLimit || 25;
       const upperLimit = config.upperLimit || 35;
       const alarmActive = temp < lowerLimit || temp > upperLimit;
-      
+
       document.getElementById('alarm').classList.toggle('on', alarmActive);
       document.getElementById('alarmText').textContent = alarmActive ? 'ALARM ACTIVE!' : 'Normal';
       document.getElementById('alarmRange').textContent = lowerLimit + '°C - ' + upperLimit + '°C';
@@ -461,7 +513,7 @@
       // System status
       document.getElementById('systemStatus').classList.add('on');
       document.getElementById('systemText').textContent = 'System Active';
-      
+
       // Device ID
       if (telemetry.device_id) {
         document.getElementById('deviceId').textContent = telemetry.device_id;
@@ -471,10 +523,10 @@
     // Handle setpoint form submission
     document.getElementById('setpointForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const setpoint = parseFloat(document.getElementById('newSetpoint').value);
       const messageDiv = document.getElementById('formMessage');
-      
+
       if (setpoint < 20 || setpoint > 100) {
         messageDiv.innerHTML = '<div class="alert error">Setpoint must be between 20-100°C</div>';
         return;
@@ -520,6 +572,10 @@
         if (!res.ok) throw new Error('Network error');
         const data = await res.json();
         if (data && data.ok) {
+          // Save to global state for LED updates
+          if (data.state) {
+            manualState = data.state;
+          }
           // Update indikator mode manual berdasarkan response terbaru
           if (data.state && typeof data.state.manual !== 'undefined') {
             const isManual = data.state.manual === 1 || data.state.manual === '1' || data.state.manual === true || data.state.manual === 'true';
@@ -528,6 +584,8 @@
           }
           manualMessageDiv.innerHTML = '<div class="alert success">Manual state updated</div>';
           setTimeout(() => { manualMessageDiv.innerHTML = ''; }, 2000);
+          // Immediately update LEDs
+          fetchData();
         } else {
           throw new Error('Bad response');
         }
@@ -545,6 +603,9 @@
         const data = await res.json();
         if (!data || !data.state) return;
         const s = data.state;
+
+        // Save to global state for LED updates
+        manualState = s;
 
         // Update indikator mode manual
         const isManual = s.manual === 1 || s.manual === '1' || s.manual === true || s.manual === 'true';
@@ -591,6 +652,7 @@
 
     // Auto-refresh every 2 seconds
     setInterval(fetchData, 2000);
+    setInterval(initManualState, 2000); // Also refresh manual state
     fetchData();
   </script>
 </body>
