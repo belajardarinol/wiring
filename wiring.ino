@@ -984,27 +984,100 @@ void temperatureControl() {
   }
 }
 
+// Tampilkan menu di display (Authentic Version)
+void showMenu() {
+  // Display2 (Small/Right) displays the Function Number
+  // Format: 0X (leading zero)
+  display2.showNumberDecEx(currentMenuNumber, 0, true, 2,
+                           2); // Show 2 digits, leading zero
+
+  // Display1 (Main/Left) displays the Value
+  float valToShow = 0;
+  bool isBool = false;
+
+  switch (currentMenuNumber) {
+  case 1:
+    valToShow = setpointTemp;
+    break;
+  case 2:
+    valToShow = heatTemp;
+    break;
+  case 3:
+    valToShow = coolTemp;
+    break;
+  case 4:
+    valToShow = fan1_enabled;
+    isBool = true;
+    break;
+  case 5:
+    valToShow = fan2_enabled;
+    isBool = true;
+    break;
+  case 6:
+    valToShow = fan3_enabled;
+    isBool = true;
+    break;
+  case 7:
+    valToShow = fan4_enabled;
+    isBool = true;
+    break;
+  case 8:
+    valToShow = timerOn;
+    break;
+  case 9:
+    valToShow = timerOff;
+    break;
+  case 10:
+    valToShow = humiditySetpoint;
+    break;
+  case 11:
+    valToShow = coolOnDelay;
+    break;
+  case 12:
+    valToShow = coolOffDelay;
+    break;
+  case 13:
+    valToShow = lowerLimit;
+    break;
+  case 14:
+    valToShow = upperLimit;
+    break;
+  case 15:
+    valToShow = alarmDelay;
+    break;
+  case 16:
+    valToShow = displayBrightness;
+    break;
+  }
+
+  // If we are inputting a code (Edit Mode), show that instead of stored value
+  if (currentMenuState == MENU_EDIT && inputCode.length() > 0) {
+    display1.showNumberDec(inputCode.toInt(), false);
+  }
+  // Otherwise show the stored value
+  else {
+    display1.showNumberDec((int)valToShow, false);
+  }
+}
+
 // Update display berdasarkan state
 void updateDisplay() {
   if (currentMenuState == MENU_IDLE) {
-    // Mode normal: Display1 = setpoint, Display2 = suhu aktual
-    if (inputCode.length() > 0) {
-      display1.showNumberDec(inputCode.toInt(), false);
-    } else {
-      display1.showNumberDec((int)setpointTemp, false);
-    }
-    display2.showNumberDec((int)currentTemp, false);
-  } else if (currentMenuState == MENU_BROWSE) {
-    // Mode browse: tampilkan menu
-    showMenu();
-  } else if (currentMenuState == MENU_EDIT) {
-    // Mode edit: Display1 = input, Display2 = nilai lama dari menu
-    if (inputCode.length() > 0) {
-      display1.showNumberDec(inputCode.toInt(), false);
-    } else {
-      display1.showNumberDec(0, false);
-    }
-    // Tampilkan nilai lama di display2 (sama dengan showMenu)
+    // Mode IDLE (Function 0)
+    // Display 1 (Main): Show Current Temperature
+    display1.showNumberDec((int)currentTemp, false);
+
+    // Display 2 (Small): Show NOTHING (or 00 to indicate function 0?)
+    // Temptron typically shows nothing or "0" on the small screen in idle.
+    // Let's clear it or show "00"
+    uint8_t data[] = {0x00, 0x00, 0x00, 0x00};
+    display2.setSegments(data); // Clear logic might vary, sending 0x00 usually
+                                // turns off segments if encoded properly, but
+                                // TM1637 needs specific OFF implementation.
+    // Easier: show nothing
+    display2.clear();
+  } else {
+    // Mode BROWSE or EDIT
     showMenu();
   }
 }
@@ -1021,127 +1094,130 @@ void loop() {
     Serial.println(key);
 
     // ========================================
-    // MENU IDLE - Mode Normal
+    // LOGIKA KEYPAD (Temptron Style)
+    // Mapping:
+    // A = DATA (Next Function)
+    // B = PROG (Edit / Program)
+    // C = CLEAR (Cancel / Reset Input)
+    // D = ENTER (Confirm Value)
     // ========================================
-    if (currentMenuState == MENU_IDLE) {
-      // Tombol A: Masuk ke mode browse menu
-      if (key == 'A') {
+
+    // 1. DATA KEY (Tombol A) - Pindah Menu
+    if (key == 'A') {
+      if (currentMenuState == MENU_EDIT) {
+        // Jika sedang edit, DATA membatalkan edit (mirip perilaku asli)
         currentMenuState = MENU_BROWSE;
-        currentMenuNumber = 1;
-        Serial.println("Masuk mode menu");
-        showMenu();
-      }
-
-      // Tombol angka: Quick edit setpoint (backward compatibility)
-      else if (key >= '0' && key <= '9') {
-        inputCode += key;
-        display1.showNumberDec(inputCode.toInt(), false);
-        if (inputCode.length() >= 2) {
-          if (validateAndSaveInput(inputCode, 1)) { // Menu 1 = Setpoint
-            Serial.print("Setpoint diubah ke: ");
-            Serial.print(setpointTemp);
-            Serial.println("°C");
-            if (!systemActive) {
-              systemActive = true;
-              digitalWrite(led_status3, HIGH);
-              Serial.println("Sistem aktif!");
-            }
-          } else {
-            Serial.println("Setpoint tidak valid! (Range: 20-100)");
-          }
-          inputCode = "";
-        }
-      }
-
-      // Tombol C: Reset input
-      else if (key == 'C') {
         inputCode = "";
         updateDisplay();
-      }
-
-      // Tombol D: Stop sistem
-      else if (key == 'D') {
-        systemActive = false;
-        digitalWrite(relay_heater, LOW);
-        digitalWrite(relay_cooler, LOW);
-        digitalWrite(led_status1, LOW);
-        digitalWrite(led_status2, LOW);
-        digitalWrite(led_status3, LOW);
-        Serial.println("Sistem dihentikan!");
-      }
-    }
-
-    // ========================================
-    // MENU BROWSE - Navigasi Menu
-    // ========================================
-    else if (currentMenuState == MENU_BROWSE) {
-      // Tombol A: Next menu (1 -> 2 -> ... -> 16 -> 1)
-      if (key == 'A') {
+      } else {
+        // Pindah ke menu berikutnya
+        currentMenuState = MENU_BROWSE; // Pastikan masuk mode browse
         currentMenuNumber++;
         if (currentMenuNumber > 16)
-          currentMenuNumber = 1;
-        Serial.print("Menu: ");
+          currentMenuNumber = 1; // Kembali ke 1 (atau 0 untuk display?)
+        Serial.print("Fungsi: ");
         Serial.println(currentMenuNumber);
         showMenu();
       }
+    }
 
-      // Tombol B: Pilih menu untuk edit
-      else if (key == 'B') {
-        currentMenuState = MENU_EDIT;
-        Serial.print("Edit Menu ");
-        if (currentMenuNumber < 10)
-          Serial.print("0");
-        Serial.println(currentMenuNumber);
+    // 2. PROG KEY (Tombol B) - Masuk/Keluar Mode Edit
+    else if (key == 'B') {
+      if (currentMenuState == MENU_EDIT) {
+        // Keluar mode edit tanpa simpan
+        currentMenuState = MENU_BROWSE;
         inputCode = "";
         updateDisplay();
+      } else {
+        // Masuk mode edit
+        currentMenuState = MENU_EDIT;
+        inputCode = "";
+        Serial.println("Mode EDIT Aktif");
+        // Tampilkan indikator edit (misal kedip atau kosong dulu)
+        display1.showNumberDec(0, true); // 00
       }
+    }
 
-      // Tombol C: Kembali ke mode normal
-      else if (key == 'C') {
-        currentMenuState = MENU_IDLE;
-        Serial.println("Kembali ke mode normal");
+    // 3. ENTER KEY (Tombol D) - Simpan Nilai / Konfirmasi
+    else if (key == 'D') {
+      if (currentMenuState == MENU_EDIT) {
+        if (inputCode.length() > 0) {
+          bool valid = validateAndSaveInput(inputCode, currentMenuNumber);
+          if (valid) {
+            Serial.println("Data Tersimpan!");
+            // Sukses flash?
+            for (int i = 0; i < 3; i++) {
+              display1.setBrightness(0);
+              delay(100);
+              display1.setBrightness(displayBrightness);
+              delay(100);
+            }
+          } else {
+            Serial.println("Data Invalid!");
+          }
+          // Kembali ke mode browse setelah save
+          currentMenuState = MENU_BROWSE;
+          inputCode = "";
+          showMenu();
+        }
+      } else {
+        // Di mode browse/idle, ENTER bisa dipakai untuk shortcut navigasi (jika
+        // logika 0 dipakai)
+        if (inputCode.length() > 0 && currentMenuState == MENU_BROWSE) {
+          // Jump to menu number
+          int target = inputCode.toInt();
+          if (target >= 1 && target <= 16) {
+            currentMenuNumber = target;
+            showMenu();
+          }
+          inputCode = "";
+        }
+      }
+    }
+
+    // 4. CLEAR/CANCEL (Tombol C)
+    else if (key == 'C') {
+      inputCode = "";
+      if (currentMenuState == MENU_EDIT) {
+        display1.showNumberDec(0, false);
+      } else {
+        currentMenuState = MENU_IDLE; // Kembali ke tampilan suhu
         updateDisplay();
       }
     }
 
-    // ========================================
-    // MENU EDIT - Edit Parameter
-    // ========================================
-    else if (currentMenuState == MENU_EDIT) {
+    // 5. NUMERIC KEYS (0-9)
+    else if (key >= '0' && key <= '9') {
+      // Logic Navigasi: Tekan '0' di awal untuk shortcut menu (Temptron
+      // feature) Tapi untuk simplifikasi:
 
-      // Tombol angka: Input nilai baru
-      if (key >= '0' && key <= '9') {
-        inputCode += key;
-        display1.showNumberDec(inputCode.toInt(), false);
-
-        // Setelah 2 digit, validasi dan simpan
-        if (inputCode.length() >= 2) {
-          bool valid = validateAndSaveInput(inputCode, currentMenuNumber);
-
-          if (valid) {
-            Serial.print("Menu ");
-            if (currentMenuNumber < 10)
-              Serial.print("0");
-            Serial.print(currentMenuNumber);
-            Serial.print(" diubah ke: ");
-            Serial.println(inputCode);
-          } else {
-            Serial.println("Input tidak valid!");
-          }
-
-          inputCode = "";
-          // Kembali ke browse menu setelah edit
-          currentMenuState = MENU_BROWSE;
-          showMenu();
+      if (currentMenuState == MENU_EDIT) {
+        // Input nilai setting
+        if (inputCode.length() < 4) { // Max 4 digit
+          inputCode += key;
+          display1.showNumberDec(inputCode.toInt(), false);
         }
-      }
+      } else {
+        // Mode Idle/Browse: Bisa ketik nomor menu untuk jump (Shortcut)
+        // Temptron: Tekan angka langsung masuk ke mode navigasi ke menu tsb?
+        // Kita implementasikan: Ketik angka -> Masuk ke menu tsb (jika valid)
 
-      // Tombol C: Cancel edit, kembali ke browse
-      else if (key == 'C') {
-        inputCode = "";
-        currentMenuState = MENU_BROWSE;
-        Serial.println("Edit dibatalkan");
-        showMenu();
+        if (key == '0' && inputCode.length() == 0) {
+          // Start jump sequence
+          inputCode += key;
+          // Tampilkan "0-" di display?
+        } else if (inputCode.length() > 0) {
+          inputCode += key;
+          int target = inputCode.toInt();
+          if (target >= 1 && target <= 16) {
+            currentMenuNumber = target;
+            currentMenuState = MENU_BROWSE;
+            inputCode = ""; // Reset setelah jump
+            showMenu();
+          }
+        }
+        // Default behavior jika tidak jump: Abaikan atau Quick Setpoint?
+        // Kita ikut standar: Idle tidak melakukan apa2 kecuali navigasi
       }
     }
   }
