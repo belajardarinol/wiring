@@ -1,488 +1,359 @@
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TempTron 607 A-C Controller</title>
+  <title>TempTron 607 A-C - Dashboard</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-    }
-
-    #app {
-      width: 100%;
-      max-width: 800px;
-    }
-
-    .controller {
-      background: linear-gradient(145deg, #f4e04d, #dcc943);
-      border-radius: 30px;
-      padding: 40px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      position: relative;
-    }
-
-    .controller::before,
-    .controller::after {
-      content: '';
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      background: #c0c0c0;
-      border-radius: 50%;
-      border: 3px solid #808080;
-      box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.3);
-    }
-
-    .controller::before {
-      top: 20px;
-      left: 20px;
-    }
-
-    .controller::after {
-      top: 20px;
-      right: 20px;
-    }
-
-    .screw-bottom-left,
-    .screw-bottom-right {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      background: #c0c0c0;
-      border-radius: 50%;
-      border: 3px solid #808080;
-      box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.3);
-      bottom: 20px;
-    }
-
-    .screw-bottom-left {
-      left: 20px;
-    }
-
-    .screw-bottom-right {
-      right: 20px;
-    }
-
-    .panel {
-      background: linear-gradient(145deg, #5dd9a6, #4bc593);
-      border-radius: 20px;
-      padding: 30px;
-      position: relative;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 25px;
-    }
-
-    .title-section h1 {
-      color: #1a3d5c;
-      font-size: 2.2em;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    .checkboxes {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      color: #1a3d5c;
-      font-weight: 600;
-    }
-
-    .checkbox-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .checkbox {
-      width: 20px;
-      height: 20px;
-      border: 2px solid #1a3d5c;
-      background: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .checkbox.checked::after {
-      content: '✓';
-      color: #1a3d5c;
-      font-weight: bold;
-    }
-
-    .chicken-icon {
-      font-size: 2em;
-      position: absolute;
-      top: 80px;
-      right: 40px;
-    }
-
-    .main-content {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 30px;
-      margin-bottom: 25px;
-    }
-
-    .left-section {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .menu-list {
-      color: #1a3d5c;
-      font-size: 0.85em;
-      line-height: 1.6;
-    }
-
-    .logo-badge {
-      background: white;
-      padding: 8px 20px;
-      border-radius: 20px;
-      text-align: center;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      margin-top: auto;
-    }
-
-    .logo-badge .agro {
-      color: #5dd9a6;
-      font-weight: bold;
-      font-size: 1.2em;
-    }
-
-    .logo-badge .logic {
-      color: #2b5c9e;
-      font-weight: bold;
-      font-size: 1.2em;
-    }
-
-    .right-section {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .displays {
-      display: flex;
-      gap: 15px;
-      justify-content: center;
-      margin-bottom: 10px;
-    }
-
-    .display {
-      background: #2a0a0a;
-      border: 3px solid #4a1a1a;
-      border-radius: 8px;
-      padding: 15px 20px;
-      font-family: 'Courier New', monospace;
-      font-size: 2.5em;
-      color: #ff3333;
-      text-align: center;
-      min-width: 140px;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
-    }
-
-    .display.small {
-      font-size: 2em;
-      min-width: 80px;
-      padding: 15px;
-    }
-
-    .keypad {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 15px;
-    }
-
-    .key {
-      background: #2b5c9e;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      font-size: 1.5em;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      margin: 0 auto;
-    }
-
-    .key:hover {
-      background: #3d7bc9;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-    }
-
-    .key:active {
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-
-    .key.special {
-      font-size: 0.9em;
-      padding: 5px;
-    }
-
-    .prog-key {
-      background: #2b5c9e;
-      color: white;
-      border: none;
-      border-radius: 25px;
-      padding: 12px 30px;
-      font-size: 1.1em;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      grid-column: 1 / -1;
-      width: 150px;
-      margin: 0 auto;
-    }
-
-    .prog-key:hover {
-      background: #3d7bc9;
-      transform: translateY(-2px);
-    }
-
-    .indicators {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .indicator {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-weight: 600;
-      color: #1a3d5c;
-    }
-
-    .indicator-icon {
-      font-size: 1.5em;
-    }
-
-    .indicator-light {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #8b0000;
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-      transition: all 0.3s;
-    }
-
-    .indicator-light.active {
-      background: #ff0000;
-      box-shadow: 0 0 10px #ff0000, inset 0 1px 2px rgba(255, 255, 255, 0.3);
-    }
-
-    @media (max-width: 768px) {
-      .controller {
-        padding: 25px;
-      }
-
-      .panel {
-        padding: 20px;
-      }
-
-      .title-section h1 {
-        font-size: 1.5em;
-      }
-
-      .main-content {
-        grid-template-columns: 1fr;
-      }
-
-      .display {
-        font-size: 2em;
-        min-width: 100px;
-        padding: 10px 15px;
-      }
-
-      .display.small {
-        font-size: 1.5em;
-        min-width: 60px;
-      }
-
-      .key {
-        width: 50px;
-        height: 50px;
-        font-size: 1.2em;
-      }
-
-      .chicken-icon {
-        position: static;
-        display: block;
-        text-align: center;
-        margin: 15px 0;
-      }
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { background: white; padding: 20px 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { color: #667eea; font-size: 2em; margin-bottom: 5px; }
+    .header p { color: #666; font-size: 0.9em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+    .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+    .card h2 { color: #333; font-size: 1.3em; margin-bottom: 15px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+    .metric { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 10px; }
+    .metric-label { color: #666; font-weight: 600; }
+    .metric-value { font-size: 1.8em; font-weight: bold; color: #667eea; }
+    .metric-value.temp { color: #ff6b6b; }
+    .metric-value.humidity { color: #4ecdc4; }
+    .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
+    .status-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; }
+    .led { width: 20px; height: 20px; border-radius: 50%; background: #ccc; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3); transition: all 0.3s; }
+    .led.on { box-shadow: 0 0 15px currentColor, inset 0 1px 2px rgba(255, 255, 255, 0.3); }
+    .led.fan { background: #4ecdc4; } .led.fan.on { background: #4ecdc4; }
+    .led.heater { background: #ff6b6b; } .led.heater.on { background: #ff6b6b; }
+    .led.alarm { background: #ffd93d; } .led.alarm.on { background: #ffd93d; animation: blink 1s infinite; }
+    .control-form { margin-top: 20px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; color: #666; font-weight: 600; margin-bottom: 5px; }
+    .form-group input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; transition: border-color 0.3s; }
+    .form-group input:focus { outline: none; border-color: #667eea; }
+    .btn { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: all 0.3s; width: 100%; }
+    .btn:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+    .btn:active { transform: translateY(0); }
+    .btn-relay { background: #667eea; color: white; border: none; padding: 15px 20px; border-radius: 8px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); }
+    .btn-relay:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25); }
+    .btn-relay:active { transform: translateY(0); }
+    .btn-relay.active { box-shadow: 0 0 20px currentColor, inset 0 2px 4px rgba(0, 0, 0, 0.2); filter: brightness(1.1); }
+    .alert { padding: 15px; border-radius: 8px; margin-bottom: 15px; font-weight: 600; }
+    .alert.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .alert.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .timestamp { color: #999; font-size: 0.85em; text-align: center; margin-top: 10px; }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .status-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
+
 <body>
-  <div id="app">
-    <div class="controller">
-      <div class="screw-bottom-left"></div>
-      <div class="screw-bottom-right"></div>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🌡️ TempTron 607 A-C Dashboard</h1>
+        <p>Temperature Controller - Real-time Monitoring & Control</p>
+      </div>
+      <!-- Removed External Link -->
+    </div>
 
-      <div class="panel">
-        <div class="header">
-          <div class="title-section">
-            <h1>TempTron 607 A-C</h1>
-            <div class="checkboxes">
-              <div class="checkbox-item">
-                <div class="checkbox checked"></div>
-                <span>Used For Broilers</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox checked"></div>
-                <span>Breeders</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox checked"></div>
-                <span>Layers</span>
-              </div>
-            </div>
-          </div>
-          <div class="chicken-icon">🐔</div>
+    <div class="grid">
+      <!-- Current Status Card -->
+      <div class="card">
+        <h2>📊 Current Status</h2>
+        <div class="metric">
+          <span class="metric-label">Temperature</span>
+          <span class="metric-value temp" id="currentTemp">--</span>
         </div>
+        <div class="metric">
+          <span class="metric-label">Humidity</span>
+          <span class="metric-value humidity" id="currentHumidity">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Setpoint</span>
+          <span class="metric-value" id="currentSetpoint">--</span>
+        </div>
+        <div class="timestamp" id="lastUpdate">Last update: --</div>
+      </div>
 
-        <div class="main-content">
-          <div class="left-section">
-            <div class="menu-list">
-              01. Clock<br>
-              02. Required Temp<br>
-              03. Heat<br>
-              04. Fan 1<br>
-              05. Fan 2<br>
-              06. Fan 3<br>
-              07. Fan 4<br>
-              08. Fan 5<br>
-              09. Fan On Time<br>
-              10. Fan Off Time<br>
-              11. Humidity Set<br>
-              12. Cool Temp<br>
-              13. Cool On Time<br>
-              14. Cool Off Time<br>
-              15. Low Alarm<br>
-              16. High Alarm<br>
-              17. Water Clock<br>
-              18. Feed Mult<br>
-              19. Daily Feed<br>
-              20. Total Feed<br>
-              21. Day 1 Temp<br>
-              22. Temp Graph<br>
-              31. Grow Day<br>
-              32. Reset Time
-            </div>
-            <div class="logo-badge">
-              <span class="agro">Agro</span><span class="logic">Logic</span><sup>®</sup>
-            </div>
+      <!-- Control Panel Card -->
+      <div class="card">
+        <h2>🎛️ Control Panel</h2>
+        <form class="control-form" id="setpointForm">
+          <div class="form-group">
+            <label for="newSetpoint">Set Temperature (20-100°C)</label>
+            <input type="number" id="newSetpoint" name="setpoint" min="20" max="100" step="0.1"
+              placeholder="Enter setpoint">
           </div>
+          <button type="submit" class="btn">Update Setpoint</button>
+        </form>
+        <div id="formMessage"></div>
+      </div>
 
-          <div class="right-section">
-            <div class="displays">
-              <div class="display" id="mainDisplay">%TEMP%</div>
-              <div class="display small" id="smallDisplay">%HUMY%</div>
-            </div>
+      <!-- Cooling Status (Kipas 1-6) -->
+      <div class="card">
+        <h2>❄️ Cooling Status (Fans)</h2>
+        <div class="status-grid">
+          <div class="status-item"> <div class="led fan" id="fan1"></div> <span>Fan 1 (+1°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan2"></div> <span>Fan 2 (+2°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan3"></div> <span>Fan 3 (+3°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan4"></div> <span>Fan 4 (+4°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan5"></div> <span>Fan 5 (+5°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan6"></div> <span>Fan 6 (+6°C)</span> </div>
+        </div>
+      </div>
 
-            <div class="keypad">
-              <button class="key" data-key="1">1</button>
-              <button class="key" data-key="2">2</button>
-              <button class="key" data-key="3">3</button>
-              <button class="key" data-key="4">4</button>
-              <button class="key" data-key="5">5</button>
-              <button class="key" data-key="6">6</button>
-              <button class="key" data-key="7">7</button>
-              <button class="key" data-key="8">8</button>
-              <button class="key" data-key="9">9</button>
-              <button class="key special" data-key="ENTER">ENTER</button>
-              <button class="key" data-key="0">0</button>
-              <button class="key special" data-key="DATA">DATA</button>
-              <button class="prog-key" data-key="PROG">PROG</button>
-            </div>
-
-            <div class="indicators">
-              <div class="indicator">
-                <span class="indicator-icon">🔊</span>
-                <div class="indicator-light" id="alarm"></div>
-                <span>ALARM</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🔥</span>
-                <div class="indicator-light active" id="heat"></div>
-                <span>HEAT</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🌀</span>
-                <div class="indicator-light" id="fan1"></div>
-                <span>FAN 1</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🌀</span>
-                <div class="indicator-light" id="fan2"></div>
-                <span>FAN 2</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🌀</span>
-                <div class="indicator-light" id="fan3"></div>
-                <span>FAN 3</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🌀</span>
-                <div class="indicator-light" id="fan4"></div>
-                <span>FAN 4</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">🌀</span>
-                <div class="indicator-light" id="fan5"></div>
-                <span>FAN 5</span>
-              </div>
-              <div class="indicator">
-                <span class="indicator-icon">❄️</span>
-                <div class="indicator-light" id="cool"></div>
-                <span>COOL</span>
-              </div>
-            </div>
+      <!-- Heating Status (Heater 7-8) -->
+      <div class="card">
+        <h2>🔥 Heating Status</h2>
+        <div class="status-grid">
+          <div class="status-item">
+            <div class="led heater" id="heater7"></div>
+            <span>Heater 7 (-2°C)</span>
+          </div>
+          <div class="status-item">
+            <div class="led fan" id="cooling"></div>
+            <span>Cooling (-4°C)</span>
           </div>
         </div>
+      </div>
+
+      <!-- Alarm Status -->
+      <div class="card">
+        <h2>🚨 Alarm Status</h2>
+        <div class="status-item">
+          <div class="led alarm" id="alarm"></div>
+          <span id="alarmText">Normal</span>
+        </div>
+        <div class="metric" style="margin-top: 15px;">
+          <span class="metric-label">Alarm Range</span>
+          <span class="metric-value" style="font-size: 1.2em;" id="alarmRange">--</span>
+        </div>
+      </div>
+
+      <!-- System Info -->
+      <div class="card">
+        <h2>ℹ️ System Info</h2>
+        <div class="status-item">
+          <div class="led" id="systemStatus" style="background: #95e1d3;"></div>
+          <span id="systemText">Checking...</span>
+        </div>
+        <div class="metric" style="margin-top: 15px;">
+          <span class="metric-label">Device ID</span>
+          <span style="font-size: 0.9em; color: #666;" id="deviceId">--</span>
+        </div>
+      </div>
+
+      <!-- Manual Control Panel -->
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>🔧 Manual Control (Testing/Maintenance)</h2>
+        <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">⚠️ Gunakan hanya untuk testing. Mode manual akan override kontrol otomatis.</p>
+
+        <div class="status-item" style="margin-bottom: 15px;">
+          <div class="led" id="manualModeLed" style="background:#ccc;"></div>
+          <span id="manualModeText">Mode: AUTO</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">
+          <button class="btn-relay" data-relay="fan1" style="background: #4ecdc4;">Fan 1</button>
+          <button class="btn-relay" data-relay="fan2" style="background: #4ecdc4;">Fan 2</button>
+          <button class="btn-relay" data-relay="fan3" style="background: #4ecdc4;">Fan 3</button>
+          <button class="btn-relay" data-relay="fan4" style="background: #4ecdc4;">Fan 4</button>
+          <button class="btn-relay" data-relay="fan5" style="background: #4ecdc4;">Fan 5</button>
+          <button class="btn-relay" data-relay="fan6" style="background: #4ecdc4;">Fan 6</button>
+          <button class="btn-relay" data-relay="heater7" style="background: #ff6b6b;">Heater 7</button>
+          <button class="btn-relay" data-relay="cooling" style="background: #3498db;">Cooling</button>
+        </div>
+
+        <button id="btnStopAll" class="btn" style="background: #e74c3c; margin-bottom: 15px;">⏹️ STOP ALL</button>
+        <div id="manualMessage"></div>
       </div>
     </div>
   </div>
 
   <script>
-    setInterval(() => {
-      fetch('/data')
-        .then(response => response.json())
-        .then(data => {
-          document.getElementById('mainDisplay').textContent = data.temp;
-          document.getElementById('smallDisplay').textContent = data.humy;
+    // Fetch telemetry data
+    async function fetchData() {
+      try {
+        const response = await fetch('/status', { cache: 'no-store' }); // CHANGED URL
+        if (!response.ok) throw new Error('Network error');
+
+        const data = await response.json();
+        updateDashboard(data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        document.getElementById('systemText').textContent = 'Connection Error';
+      }
+    }
+
+    // Store manual state globally
+    let manualState = null;
+
+    function updateDashboard(data) {
+      const telemetry = data.telemetry || {};
+      const config = data.config || {};
+      
+      // Update local logic: if state is present, use it
+      if (data.state) {
+        manualState = data.state;
+      }
+
+      // Update temperature & humidity
+      if (telemetry.temp !== undefined) {
+        document.getElementById('currentTemp').textContent = telemetry.temp.toFixed(1) + '°C';
+      }
+      if (telemetry.humidity !== undefined) {
+        document.getElementById('currentHumidity').textContent = telemetry.humidity.toFixed(1) + '%';
+      }
+      if (telemetry.setpoint !== undefined) {
+        document.getElementById('currentSetpoint').textContent = telemetry.setpoint.toFixed(1) + '°C';
+      } else if (config.setpoint !== undefined) {
+        document.getElementById('currentSetpoint').textContent = config.setpoint.toFixed(1) + '°C';
+      }
+
+      // Update timestamp
+      document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+
+      // Check if manual mode is active
+      const isManualMode = manualState && (manualState.manual === 1 || manualState.manual === '1' || manualState.manual === true);
+      const manualModeLed = document.getElementById('manualModeLed');
+      const manualModeText = document.getElementById('manualModeText');
+      
+      manualModeLed.classList.toggle('on', isManualMode);
+      manualModeText.textContent = isManualMode ? 'Mode: MANUAL' : 'Mode: AUTO';
+
+      // Update Buttons State if in manual mode
+      const relayButtons = document.querySelectorAll('.btn-relay');
+      relayButtons.forEach(btn => {
+        const key = btn.dataset.relay;
+        if (manualState && manualState[key] !== undefined) {
+           const val = manualState[key];
+           const active = val === 1 || val === '1' || val === true;
+           btn.classList.toggle('active', active);
+        }
+      });
+
+      // Update LEDs
+      // In this version, we trust the 'state' from server for actual ON/OFF status
+      // whether it is auto or manual
+      const s = manualState || {};
+      const isOn = (val) => val === 1 || val === '1' || val === true;
+
+      document.getElementById('fan1').classList.toggle('on', isOn(s.fan1));
+      document.getElementById('fan2').classList.toggle('on', isOn(s.fan2));
+      document.getElementById('fan3').classList.toggle('on', isOn(s.fan3));
+      document.getElementById('fan4').classList.toggle('on', isOn(s.fan4));
+      document.getElementById('fan5').classList.toggle('on', isOn(s.fan5));
+      document.getElementById('fan6').classList.toggle('on', isOn(s.fan6));
+      document.getElementById('heater7').classList.toggle('on', isOn(s.heater7));
+      document.getElementById('cooling').classList.toggle('on', isOn(s.cooling));
+    
+      // Update Alarm
+      const temp = telemetry.temp || 0;
+      const lowerLimit = config.lowerLimit || 25;
+      const upperLimit = config.upperLimit || 35;
+      const alarmActive = temp < lowerLimit || temp > upperLimit;
+
+      document.getElementById('alarm').classList.toggle('on', alarmActive);
+      document.getElementById('alarmText').textContent = alarmActive ? 'ALARM ACTIVE!' : 'Normal';
+      document.getElementById('alarmRange').textContent = lowerLimit + '°C - ' + upperLimit + '°C';
+
+      // System status
+      document.getElementById('systemStatus').classList.add('on');
+      document.getElementById('systemText').textContent = 'System Active';
+
+      // Device ID
+      if (telemetry.device_id) {
+        document.getElementById('deviceId').textContent = telemetry.device_id;
+      }
+    }
+
+    // Handle setpoint form submission
+    document.getElementById('setpointForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const setpoint = parseFloat(document.getElementById('newSetpoint').value);
+      const messageDiv = document.getElementById('formMessage');
+
+      if (setpoint < 20 || setpoint > 100) {
+        messageDiv.innerHTML = '<div class="alert error">Setpoint must be between 20-100°C</div>';
+        return;
+      }
+
+      try {
+        // Use JSON body for advanced parsing, or simplified logic in wiring.ino
+        const response = await fetch('/config', { // CHANGED URL
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ setpoint: setpoint })
         });
-    }, 2000);
+
+        if (response.ok) {
+          messageDiv.innerHTML = '<div class="alert success">Setpoint updated successfully!</div>';
+          document.getElementById('newSetpoint').value = '';
+          setTimeout(() => { messageDiv.innerHTML = ''; }, 3000);
+          fetchData(); // Refresh data
+        } else {
+          throw new Error('Update failed');
+        }
+      } catch (error) {
+        messageDiv.innerHTML = '<div class="alert error">Failed to update setpoint</div>';
+      }
+    });
+
+    // ========================================
+    // Manual Control (Testing/Maintenance)
+    // ========================================
+
+    const relayButtons = document.querySelectorAll('.btn-relay');
+    const stopAllButton = document.getElementById('btnStopAll');
+    const manualMessageDiv = document.getElementById('manualMessage');
+
+    async function sendManualUpdate(payload) {
+      try {
+        const res = await fetch('/manual', { // CHANGED URL
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Network error');
+        
+        // Optimistic update or success message
+        manualMessageDiv.innerHTML = '<div class="alert success">Command sent</div>';
+        setTimeout(() => { manualMessageDiv.innerHTML = ''; }, 1000);
+        
+        // Refresh status immediately
+        fetchData();
+      } catch (err) {
+        console.error('Manual update error', err);
+        manualMessageDiv.innerHTML = '<div class="alert error">Failed to send command</div>';
+      }
+    }
+
+    relayButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const relayKey = btn.dataset.relay;
+        const isActive = btn.classList.contains('active');
+        const newState = !isActive;
+
+        const payload = { manual: 1 };
+        payload[relayKey] = newState ? 1 : 0;
+        sendManualUpdate(payload);
+      });
+    });
+
+    if (stopAllButton) {
+      stopAllButton.addEventListener('click', () => {
+        const payload = { manual: 0 };
+        sendManualUpdate(payload);
+      });
+    }
+
+    // Auto-refresh every 2 seconds
+    setInterval(fetchData, 2000);
+    fetchData();
   </script>
 </body>
 </html>

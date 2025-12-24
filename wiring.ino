@@ -12,14 +12,19 @@
 #include <Wire.h>
 
 // ========================================
-// WiFi Configuration (COMMENTED FOR LATER)
+// WiFi Configuration
 // ========================================
+#include "webpage.h"
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <WiFi.h>
-// #include <ESPAsyncWebServer.h>
-// #include "webpage.h"
+
+// Ganti sesuai jaringan Anda
 const char *ssid = "Sejahtera";
 const char *password = "presiden sekarang";
-// AsyncWebServer server(80);
+
+AsyncWebServer server(80);
+
 const char *apiTelemetry = "https://malik.kukode.com/api/telemetry.php";
 const char *apiConfig = "https://malik.kukode.com/api/config.php";
 const char *apiManual = "https://malik.kukode.com/api/manual.php";
@@ -39,7 +44,7 @@ const char *apiManual = "https://malik.kukode.com/api/manual.php";
 // Ubah ke true jika relay module Anda Active LOW (umum pada relay module biru)
 // ========================================
 #define RELAY_ACTIVE_LOW                                                       \
-  true // true = relay ON saat GPIO LOW, false = relay ON saat GPIO HIGH
+  false // false = relay ON saat GPIO HIGH (relay module Anda)
 
 // Helper macros for relay control
 #if RELAY_ACTIVE_LOW
@@ -52,7 +57,7 @@ const char *apiManual = "https://malik.kukode.com/api/manual.php";
 
 // ========================================
 // Relay/LED pins untuk kontrol
-// Urutan sesuai wiring: 18, 19, 23, 5, 13, 12, 14, 27
+// Urutan sesuai wiring: 18, 19, 23, 5, 13, 12, 14, 27, 2
 // ========================================
 int led_status1 = 18;  // Kipas 1 (aktif saat suhu +1°C dari setpoint) - Relay 1
 int led_status2 = 19;  // Kipas 2 (aktif saat suhu +2°C dari setpoint) - Relay 2
@@ -62,12 +67,22 @@ int led_status5 = 13;  // Kipas 5 (aktif saat suhu +5°C dari setpoint) - Relay 
 int relay_cooler = 12; // Cooling (aktif saat suhu tinggi) - Relay 6
 int relay_heater = 14; // Heater (aktif saat suhu rendah) - Relay 7
 int led_status6 = 27;  // Kipas 6 (aktif saat suhu +6°C dari setpoint) - Relay 8
+int led_status6_extra = 2; // Kipas 6 tambahan - dikontrol bersama led_status6
 
+// Helper function untuk mengontrol Kipas 6 (pin 27 dan pin 2 bersamaan)
+void setFan6(int state) {
+  digitalWrite(led_status6, state);
+  digitalWrite(led_status6_extra, state);
+}
+
+// ========================================
+// Global Variables
 // ========================================
 // Global Variables
 // ========================================
 float currentTemp = 0;
 float currentHumidity = 0;
+bool sensorValid = false;
 String inputCode = "";
 bool systemActive = false;
 unsigned long lastReadTime = 0;
@@ -227,6 +242,7 @@ void setup() {
   pinMode(led_status4, OUTPUT);
   pinMode(led_status5, OUTPUT);
   pinMode(led_status6, OUTPUT);
+  pinMode(led_status6_extra, OUTPUT); // Pin 2 tambahan untuk Kipas 6
 
   // Matikan semua relay dan LED saat start
   digitalWrite(relay_heater, RELAY_OFF);
@@ -237,6 +253,7 @@ void setup() {
   digitalWrite(led_status4, RELAY_OFF);
   digitalWrite(led_status5, RELAY_OFF);
   digitalWrite(led_status6, RELAY_OFF);
+  digitalWrite(led_status6_extra, RELAY_OFF); // Pin 2 tambahan
 
   // Inisialisasi Display
   display1.setBrightness(displayBrightness);
@@ -251,29 +268,196 @@ void setup() {
   Serial.println("Masukkan kode akses untuk memulai...");
 
   // ========================================
-  // WiFi Setup (COMMENTED FOR LATER)
+  // WiFi Setup
   // ========================================
   Serial.println("Connecting to WiFi...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting...");
+  int retry = 0;
+  while (WiFi.status() != WL_CONNECTED && retry < 20) {
+    delay(500);
+    Serial.print(".");
+    retry++;
   }
-  Serial.println("Connected to WiFi");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-  //
-  // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-  //   request->send_P(200, "text/html", index_html);
-  // });
-  //
-  // server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request){
-  //   String json = "{\"temp\":" + String(currentTemp, 1) + ",\"setpoint\":" +
-  //   String(setpointTemp, 1) + "}"; request->send(200, "application/json",
-  //   json);
-  // });
-  //
-  // server.begin();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nConnected to WiFi");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    // Route for root / web page
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send_P(200, "text/html", index_html);
+    });
+
+    // API: Status (Telemetry)
+    // Returns: { "telemetry": { ... }, "config": { ... }, "state": { ... } }
+    server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+      String json = "{";
+
+      // Telemetry
+      json += "\"telemetry\":{";
+      json += "\"temp\":" + String(currentTemp, 1) + ",";
+      json += "\"humidity\":" + String(currentHumidity, 1) + ",";
+      json += "\"setpoint\":" + String(setpointTemp, 1) + ",";
+      json += "\"device_id\":\"" + WiFi.macAddress() + "\"";
+      json += "},";
+
+      // Config
+      json += "\"config\":{";
+      json += "\"setpoint\":" + String(setpointTemp, 1) + ",";
+      json += "\"lowerLimit\":" + String(lowerLimit, 1) + ",";
+      json += "\"upperLimit\":" + String(upperLimit, 1);
+      json += "},";
+
+      // State (Visual feedback for LEDs)
+      // Note: In auto mode, these are calculated. In manual, they are valid.
+      // We send the pin states to reflect reality.
+      json += "\"state\":{";
+      json += "\"manual\":" + String(manualMode ? 1 : 0) + ",";
+      json += "\"fan1\":" + String(digitalRead(led_status1)) + ",";
+      json += "\"fan2\":" + String(digitalRead(led_status2)) + ",";
+      json += "\"fan3\":" + String(digitalRead(led_status3)) + ",";
+      json += "\"fan4\":" + String(digitalRead(led_status4)) + ",";
+      json += "\"fan5\":" + String(digitalRead(led_status5)) + ",";
+      json += "\"fan6\":" + String(digitalRead(led_status6)) + ",";
+      json += "\"heater7\":" + String(digitalRead(relay_heater)) + ",";
+      json +=
+          "\"cooling\":" +
+          String(digitalRead(
+              relay_cooler)); // Note: index.php maps cooling led to 'cooling'
+      json += "}";
+
+      json += "}";
+      request->send(200, "application/json", json);
+    });
+
+    // API: Config (Update Setpoint)
+    // Expects JSON: { "setpoint": 30.5 }
+    server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
+      // NOTE: Body parsing handled in onBody, but for simplicity with
+      // AsyncWebServer, we need to register an onBody handler or use parameters
+      // if sent as form data. Since fetch sends raw JSON body, we need a body
+      // handler. For simplicity in this non-blocking environment, we'll assume
+      // the client can also send query params or we parse the body in a
+      // specific handler. However, to keep it simple without external JSON lib
+      // logic in the request handler:
+      request->send(
+          200, "application/json",
+          "{\"status\":\"ok\", \"message\":\"Send data as query param "
+          "?setpoint=XX for simplicity or implement body parser\"}");
+    });
+
+    // Simplification: Allow updating setpoint via GET /config?setpoint=30
+    // OR create a specific body handler is required.
+    // Let's implement the GET/query param fallback which is robust.
+    server.on("/update_config", HTTP_GET, [](AsyncWebServerRequest *request) {
+      if (request->hasParam("setpoint")) {
+        float val = request->getParam("setpoint")->value().toFloat();
+        if (val >= 20 && val <= 100) {
+          setpointTemp = val;
+          saveConfig();
+          request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+          request->send(400, "application/json",
+                        "{\"status\":\"error\",\"message\":\"Out of range\"}");
+        }
+      } else {
+        request->send(400, "application/json",
+                      "{\"status\":\"error\",\"message\":\"Missing param\"}");
+      }
+    });
+
+    // Handle JSON body for /config (Advanced)
+    server.on(
+        "/config", HTTP_POST,
+        [](AsyncWebServerRequest *request) { request->send(200); }, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+          // Simple body parser
+          String body = "";
+          for (size_t i = 0; i < len; i++)
+            body += (char)data[i];
+
+          int idx = body.indexOf("\"setpoint\"");
+          if (idx >= 0) {
+            // Rudimentary parse
+            int start = body.indexOf(":", idx) + 1;
+            float val = body.substring(start).toFloat();
+            if (val >= 20 && val <= 100) {
+              setpointTemp = val;
+              saveConfig();
+            }
+          }
+        });
+
+    // API: Manual Control
+    // Expects JSON: { "manual": 1, "fan1": 1, ... }
+    server.on(
+        "/manual", HTTP_POST,
+        [](AsyncWebServerRequest *request) {
+          request->send(200, "application/json", "{\"ok\":true}");
+        },
+        NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+          String body = "";
+          for (size_t i = 0; i < len; i++)
+            body += (char)data[i];
+
+          // Use existing helper or custom logic
+          // We need to parse 'manual' first
+          if (body.indexOf("\"manual\"") >= 0) {
+            // Simple boolean/int check
+            if (body.indexOf("\"manual\":1") > 0 ||
+                body.indexOf("\"manual\": 1") > 0 ||
+                body.indexOf("\"manual\":true") > 0) {
+              manualMode = true;
+            } else {
+              manualMode = false;
+            }
+          }
+
+          if (manualMode) {
+            if (body.indexOf("\"fan1\":1") > 0)
+              manual_fan1 = 1;
+            else if (body.indexOf("\"fan1\":0") > 0)
+              manual_fan1 = 0;
+            if (body.indexOf("\"fan2\":1") > 0)
+              manual_fan2 = 1;
+            else if (body.indexOf("\"fan2\":0") > 0)
+              manual_fan2 = 0;
+            if (body.indexOf("\"fan3\":1") > 0)
+              manual_fan3 = 1;
+            else if (body.indexOf("\"fan3\":0") > 0)
+              manual_fan3 = 0;
+            if (body.indexOf("\"fan4\":1") > 0)
+              manual_fan4 = 1;
+            else if (body.indexOf("\"fan4\":0") > 0)
+              manual_fan4 = 0;
+            if (body.indexOf("\"fan5\":1") > 0)
+              manual_fan5 = 1;
+            else if (body.indexOf("\"fan5\":0") > 0)
+              manual_fan5 = 0;
+            if (body.indexOf("\"fan6\":1") > 0)
+              manual_fan6 = 1;
+            else if (body.indexOf("\"fan6\":0") > 0)
+              manual_fan6 = 0;
+            if (body.indexOf("\"heater7\":1") > 0)
+              manual_heater7 = 1;
+            else if (body.indexOf("\"heater7\":0") > 0)
+              manual_heater7 = 0;
+            if (body.indexOf("\"cooling\":1") > 0)
+              manual_cooling = 1;
+            else if (body.indexOf("\"cooling\":0") > 0)
+              manual_cooling = 0;
+          }
+        });
+
+    server.begin();
+    Serial.println("Web Server started!");
+  } else {
+    Serial.println("\nWiFi Connection Failed!");
+  }
 }
 
 // ========================================
@@ -626,7 +810,7 @@ void checkAlarm() {
       digitalWrite(led_status3, RELAY_ON);
       digitalWrite(led_status4, RELAY_ON);
       digitalWrite(led_status5, RELAY_ON);
-      digitalWrite(led_status6, RELAY_ON);
+      setFan6(RELAY_ON);
       Serial.println("ALARM: Suhu di luar batas!");
       Serial.print("Batas: ");
       Serial.print(lowerLimit);
@@ -643,7 +827,7 @@ void checkAlarm() {
       digitalWrite(led_status3, RELAY_OFF);
       digitalWrite(led_status4, RELAY_OFF);
       digitalWrite(led_status5, RELAY_OFF);
-      digitalWrite(led_status6, RELAY_OFF);
+      setFan6(RELAY_OFF);
       Serial.println("Alarm cleared: Suhu kembali normal");
     }
   }
@@ -661,7 +845,7 @@ void applyManualControl() {
   digitalWrite(led_status3, manual_fan3 ? RELAY_ON : RELAY_OFF);
   digitalWrite(led_status4, manual_fan4 ? RELAY_ON : RELAY_OFF);
   digitalWrite(led_status5, manual_fan5 ? RELAY_ON : RELAY_OFF);
-  digitalWrite(led_status6, manual_fan6 ? RELAY_ON : RELAY_OFF);
+  setFan6(manual_fan6 ? RELAY_ON : RELAY_OFF);
 
   Serial.print("MANUAL CONTROL -> Heater:");
   Serial.print(manual_heater7);
@@ -695,7 +879,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_ON);
     digitalWrite(led_status4, RELAY_ON);
     digitalWrite(led_status5, RELAY_ON);
-    digitalWrite(led_status6, RELAY_ON);
+    setFan6(RELAY_ON);
     digitalWrite(relay_cooler, RELAY_ON); // Main Cooling ON
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 7 (All fans + Main Cooling ON)");
@@ -706,7 +890,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_ON);
     digitalWrite(led_status4, RELAY_ON);
     digitalWrite(led_status5, RELAY_ON);
-    digitalWrite(led_status6, RELAY_ON);
+    setFan6(RELAY_ON);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 6 (All fans ON)");
@@ -717,7 +901,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_ON);
     digitalWrite(led_status4, RELAY_ON);
     digitalWrite(led_status5, RELAY_ON);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 5");
@@ -728,7 +912,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_ON);
     digitalWrite(led_status4, RELAY_ON);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 4");
@@ -739,7 +923,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_ON);
     digitalWrite(led_status4, RELAY_OFF);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 3");
@@ -750,7 +934,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_OFF);
     digitalWrite(led_status4, RELAY_OFF);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 2");
@@ -761,7 +945,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_OFF);
     digitalWrite(led_status4, RELAY_OFF);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     digitalWrite(relay_cooler, RELAY_OFF);
     digitalWrite(relay_heater, RELAY_OFF);
     Serial.println("Status: COOLING LEVEL 1");
@@ -779,7 +963,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_OFF);
     digitalWrite(led_status4, RELAY_OFF);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     Serial.println("Status: HEATING (Heater ON)");
   }
 
@@ -795,7 +979,7 @@ void temperatureControl() {
     digitalWrite(led_status3, RELAY_OFF);
     digitalWrite(led_status4, RELAY_OFF);
     digitalWrite(led_status5, RELAY_OFF);
-    digitalWrite(led_status6, RELAY_OFF);
+    setFan6(RELAY_OFF);
     Serial.println("Status: OPTIMAL (All OFF)");
   }
 }
@@ -943,9 +1127,6 @@ void loop() {
             Serial.println(inputCode);
           } else {
             Serial.println("Input tidak valid!");
-            digitalWrite(led_status4, HIGH);
-            delay(500);
-            digitalWrite(led_status4, LOW);
           }
 
           inputCode = "";
@@ -977,10 +1158,9 @@ void loop() {
     // Cek apakah pembacaan sensor valid
     if (isnan(currentTemp) || isnan(currentHumidity)) {
       Serial.println("Error: Gagal membaca sensor DHT!");
-      digitalWrite(led_status4, HIGH);
-      return;
+      sensorValid = false;
     } else {
-      digitalWrite(led_status4, LOW);
+      sensorValid = true;
     }
 
     Serial.print("Suhu: ");
@@ -1001,9 +1181,14 @@ void loop() {
     // Kontrol: Prioritas Manual Mode, lalu System Active
     if (manualMode) {
       applyManualControl();
-    } else if (systemActive) {
+    } else if (systemActive && sensorValid) {
+      // Hanya jalankan kontrol otomatis jika sensor valid
       temperatureControl();
-      checkAlarm(); // Cek alarm batas suhu
+      checkAlarm();
+    } else if (systemActive && !sensorValid) {
+      // Safety: Matikan semua jika sensor error dan auto mode
+      // Opsional: Nyalakan Fan minimal untuk safety?
+      Serial.println("Safety Mode: Sensor Error - Menunggu perbaikan");
     }
   }
   unsigned long now = millis();

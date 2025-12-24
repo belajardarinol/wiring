@@ -4,10 +4,15 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: content-type, authorization');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+  http_response_code(204);
+  exit;
+}
 
 $baseDir = dirname(__FILE__) . '/../data';
-if (!is_dir($baseDir)) { @mkdir($baseDir, 0775, true); }
+if (!is_dir($baseDir)) {
+  @mkdir($baseDir, 0775, true);
+}
 $manualFile = $baseDir . '/manual.json';
 
 // Default manual state (all off, auto mode)
@@ -28,18 +33,23 @@ $default = [
 $state = $default;
 if (file_exists($manualFile)) {
   $data = json_decode(@file_get_contents($manualFile), true);
-  if (is_array($data)) { $state = array_merge($state, $data); }
+  if (is_array($data)) {
+    $state = array_merge($state, $data);
+  }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-  echo json_encode(['ok' => true, 'manual' => $state['manual'], 'state' => $state]);
+  // Return flat JSON for Arduino to parse easily
+  echo json_encode($state);
   exit;
 }
 
 // POST: update manual state
 $raw = file_get_contents('php://input');
 $input = json_decode($raw, true);
-if (!is_array($input)) { $input = $_POST; }
+if (!is_array($input)) {
+  $input = $_POST;
+}
 
 $boolKeys = ['manual', 'fan1', 'fan2', 'fan3', 'fan4', 'fan5', 'fan6', 'heater7', 'cooling'];
 foreach ($boolKeys as $key) {
@@ -50,6 +60,6 @@ foreach ($boolKeys as $key) {
 }
 $state['updated_at'] = date('c');
 
-@file_put_contents($manualFile, json_encode($state, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT));
+@file_put_contents($manualFile, json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
 echo json_encode(['ok' => true, 'state' => $state]);
