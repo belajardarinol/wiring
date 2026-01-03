@@ -84,7 +84,7 @@ float currentTemp = 0;
 float currentHumidity = 0;
 bool sensorValid = false;
 String inputCode = "";
-bool systemActive = false;
+bool systemActive = true;
 unsigned long lastReadTime = 0;
 const unsigned long readInterval = 2000; // Baca sensor setiap 2 detik
 unsigned long lastPostTime = 0;
@@ -95,7 +95,7 @@ unsigned long lastManualFetchTime = 0;
 const unsigned long manualFetchInterval = 1000;
 
 const int EEPROM_SIZE = 512;
-const uint16_t CONFIG_MAGIC = 0x607A;
+const uint16_t CONFIG_MAGIC = 0x607B;
 
 struct ConfigData {
   uint16_t magic;
@@ -115,6 +115,7 @@ struct ConfigData {
   float upperLimit;
   int alarmDelay;
   int displayBrightness;
+  bool systemActive;
 };
 
 ConfigData config;
@@ -767,6 +768,7 @@ void saveConfig() {
   config.upperLimit = upperLimit;
   config.alarmDelay = alarmDelay;
   config.displayBrightness = displayBrightness;
+  config.systemActive = systemActive;
   EEPROM.put(0, config);
   EEPROM.commit();
 }
@@ -790,6 +792,7 @@ bool loadConfig() {
     upperLimit = config.upperLimit;
     alarmDelay = config.alarmDelay;
     displayBrightness = config.displayBrightness;
+    systemActive = config.systemActive;
     display1.setBrightness(displayBrightness);
     display2.setBrightness(displayBrightness);
     return true;
