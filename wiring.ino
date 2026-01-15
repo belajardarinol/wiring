@@ -5,26 +5,25 @@
 
 #include <DHT.h>
 #include <EEPROM.h>
+// TEMPORARY: Disabled for LCD testing without ESP32 package
 #include <HTTPClient.h>
+#include <I2CKeyPad.h>
 #include <Keypad.h>
-#include <Keypad_I2C.h>
 #include <TM1637Display.h>
 #include <Wire.h>
 
 // ========================================
-// WiFi Configuration
+// WiFi Configuration - DISABLED FOR TESTING
 // ========================================
 #include "webpage.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WiFi.h>
 
-// Ganti sesuai jaringan Anda
+// TEMPORARY: WiFi disabled for LCD testing
 const char *ssid = "Sejahtera";
 const char *password = "presiden sekarang";
-
 AsyncWebServer server(80);
-
 const char *apiTelemetry = "https://malik.kukode.com/api/telemetry.php";
 const char *apiConfig = "https://malik.kukode.com/api/config.php";
 const char *apiManual = "https://malik.kukode.com/api/manual.php";
@@ -145,7 +144,8 @@ bool fan4_enabled = false;
 int timerOn = 0;  // Timer ON (0-99 menit)
 int timerOff = 0; // Timer OFF (0-99 menit)
 unsigned long timerStartTime = 0;
-bool timerActive = false;
+bool timerActive =
+    false; // Internal: Current state of intermittent (true=ON, false=OFF)
 
 // Menu 10: Humidity Setpoint
 float humiditySetpoint = 60.0; // Default 60% (range 0-99)
@@ -204,17 +204,9 @@ DHT dht(DHTPIN, DHTTYPE);
 TM1637Display display1(CLK1, DIO1); // Display untuk suhu aktual
 TM1637Display display2(CLK2, DIO2); // Display untuk setpoint
 
-const byte ROWS = 4;
-const byte COLS = 4;
-char keys[ROWS][COLS] = {{'1', '2', '3', 'A'},
-                         {'4', '5', '6', 'B'},
-                         {'7', '8', '9', 'C'},
-                         {'*', '0', '#', 'D'}};
-byte rowPins[ROWS] = {0, 1, 2, 3};
-byte colPins[COLS] = {4, 5, 6, 7};
-int i2caddress = 0x20;
-Keypad_I2C kpd =
-    Keypad_I2C(makeKeymap(keys), rowPins, colPins, ROWS, COLS, i2caddress);
+const int i2caddress = 0x20;
+I2CKeyPad kpd(i2caddress);
+char keymap[] = "123A456B789C*0#D"; // Index 16 is \0 (NO_KEY), Index 17 (FAIL)
 
 // ========================================
 // Setup Function - Inisialisasi Sistem
@@ -227,7 +219,11 @@ void setup() {
 
   // Inisialisasi I2C dan Keypad
   Wire.begin();
-  kpd.begin();
+  if (kpd.begin()) {
+    kpd.loadKeyMap(keymap);
+  } else {
+    Serial.println("Keypad not found at 0x20");
+  }
 
   // Inisialisasi DHT Sensor
   dht.begin();
@@ -691,65 +687,6 @@ void fetchManualControl() {
   http.end();
 }
 
-// Tampilkan menu di display
-void showMenu() {
-  // Display1 (besar) menampilkan nomor menu dengan leading zero
-  display1.showNumberDecEx(currentMenuNumber, 0b01000000,
-                           true); // Format: 0X (X = nomor menu)
-
-  // Display2 (kecil) menampilkan nilai setting saat ini
-  switch (currentMenuNumber) {
-  case 1:
-    display2.showNumberDec((int)setpointTemp, false);
-    break;
-  case 2:
-    display2.showNumberDec((int)heatTemp, false);
-    break;
-  case 3:
-    display2.showNumberDec((int)coolTemp, false);
-    break;
-  case 4:
-    display2.showNumberDec(fan1_enabled ? 1 : 0, false);
-    break;
-  case 5:
-    display2.showNumberDec(fan2_enabled ? 1 : 0, false);
-    break;
-  case 6:
-    display2.showNumberDec(fan3_enabled ? 1 : 0, false);
-    break;
-  case 7:
-    display2.showNumberDec(fan4_enabled ? 1 : 0, false);
-    break;
-  case 8:
-    display2.showNumberDec(timerOn, false);
-    break;
-  case 9:
-    display2.showNumberDec(timerOff, false);
-    break;
-  case 10:
-    display2.showNumberDec((int)humiditySetpoint, false);
-    break;
-  case 11:
-    display2.showNumberDec(coolOnDelay, false);
-    break;
-  case 12:
-    display2.showNumberDec(coolOffDelay, false);
-    break;
-  case 13:
-    display2.showNumberDec((int)lowerLimit, false);
-    break;
-  case 14:
-    display2.showNumberDec((int)upperLimit, false);
-    break;
-  case 15:
-    display2.showNumberDec(alarmDelay, false);
-    break;
-  case 16:
-    display2.showNumberDec(displayBrightness, false);
-    break;
-  }
-}
-
 void saveConfig() {
   config.magic = CONFIG_MAGIC;
   config.setpointTemp = setpointTemp;
@@ -866,6 +803,34 @@ void applyManualControl() {
   Serial.print(manual_fan5);
   Serial.print(" F6:");
   Serial.println(manual_fan6);
+}
+
+// Logic Intermittent (Timer ON/OFF) untuk Kipas 1
+void updateIntermittent() {
+  // Jika fitur disabled (salah satu 0), paksa OFF
+  if (timerOn == 0 || timerOff == 0) {
+    timerActive = false;
+    return;
+  }
+
+  unsigned long now = millis();
+  unsigned long elapsed = now - timerStartTime;
+
+  if (timerActive) {
+    // Sedang ON, cek durasi ON (menit -> ms)
+    if (elapsed >= (unsigned long)timerOn * 60000UL) {
+      timerActive = false;
+      timerStartTime = now;
+      Serial.println("Intermittent Fan 1: Switch to OFF");
+    }
+  } else {
+    // Sedang OFF, cek durasi OFF
+    if (elapsed >= (unsigned long)timerOff * 60000UL) {
+      timerActive = true;
+      timerStartTime = now;
+      Serial.println("Intermittent Fan 1: Switch to ON");
+    }
+  }
 }
 
 // Kontrol suhu berdasarkan setpoint dengan logika bertingkat
@@ -992,7 +957,7 @@ void showMenu() {
   // Display2 (Small/Right) displays the Function Number
   // Format: 0X (leading zero)
   display2.showNumberDecEx(currentMenuNumber, 0, true, 2,
-                           2); // Show 2 digits, leading zero
+                           0); // Show 2 digits, leading zero, position 0
 
   // Display1 (Main/Left) displays the Value
   float valToShow = 0;
@@ -1090,7 +1055,7 @@ void updateDisplay() {
 // ========================================
 void loop() {
   // Ambil input dari keyboard
-  char key = kpd.getKey();
+  char key = kpd.getChar();
 
   if (key) {
     Serial.print("Key pressed: ");
