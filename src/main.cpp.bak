@@ -5,7 +5,6 @@
 
 #include <DHT.h>
 #include <EEPROM.h>
-// TEMPORARY: Disabled for LCD testing without ESP32 package
 #include <HTTPClient.h>
 #include <I2CKeyPad.h>
 #include <Keypad.h>
@@ -13,17 +12,19 @@
 #include <Wire.h>
 
 // ========================================
-// WiFi Configuration - DISABLED FOR TESTING
+// WiFi Configuration
 // ========================================
 #include "webpage.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WiFi.h>
 
-// TEMPORARY: WiFi disabled for LCD testing
+// Ganti sesuai jaringan Anda
 const char *ssid = "Sejahtera";
 const char *password = "presiden sekarang";
+
 AsyncWebServer server(80);
+
 const char *apiTelemetry = "https://malik.kukode.com/api/telemetry.php";
 const char *apiConfig = "https://malik.kukode.com/api/config.php";
 const char *apiManual = "https://malik.kukode.com/api/manual.php";
@@ -144,8 +145,7 @@ bool fan4_enabled = false;
 int timerOn = 0;  // Timer ON (0-99 menit)
 int timerOff = 0; // Timer OFF (0-99 menit)
 unsigned long timerStartTime = 0;
-bool timerActive =
-    false; // Internal: Current state of intermittent (true=ON, false=OFF)
+bool timerActive = false;
 
 // Menu 10: Humidity Setpoint
 float humiditySetpoint = 60.0; // Default 60% (range 0-99)
@@ -171,11 +171,6 @@ int displayBrightness = 15; // Default 15 (0x0f), range 0-15
 
 // Alarm state
 bool alarmTriggered = false;
-unsigned long alarmTimerStart = 0; // Timer untuk delay alarm
-
-// Cooling state
-unsigned long coolTimerStart = 0; // Timer untuk delay cooling
-bool coolingActiveState = false;  // Internal state status cooling
 
 // ========================================
 // Manual Control State
@@ -223,6 +218,7 @@ void setup() {
   Serial.println("========================================");
 
   // Inisialisasi I2C dan Keypad
+  Wire.begin();
   Wire.begin();
   if (kpd.begin()) {
     kpd.loadKeyMap(keymap);
@@ -744,32 +740,26 @@ bool loadConfig() {
   }
 }
 
-// Cek alarm batas suhu dengan delay (Menu 13, 14, 15)
+// Cek alarm batas suhu
 void checkAlarm() {
   if (currentTemp > upperLimit || currentTemp < lowerLimit) {
-    // Kondisi alarm terdeteksi
     if (!alarmTriggered) {
-      // Cek timer delay
-      if (alarmTimerStart == 0) {
-        alarmTimerStart = millis();
-      } else {
-        if (millis() - alarmTimerStart >= (unsigned long)alarmDelay * 1000UL) {
-          // Delay terpenuhi, TRIGGER ALARM
-          alarmTriggered = true;
-          // Semua LED nyala bersamaan saat alarm
-          digitalWrite(led_status1, RELAY_ON);
-          digitalWrite(led_status2, RELAY_ON);
-          digitalWrite(led_status3, RELAY_ON);
-          digitalWrite(led_status4, RELAY_ON);
-          digitalWrite(led_status5, RELAY_ON);
-          setFan6(RELAY_ON);
-          Serial.println("ALARM: Suhu di luar batas (Delayed)!");
-        }
-      }
+      alarmTriggered = true;
+      // Semua LED nyala bersamaan saat alarm
+      digitalWrite(led_status1, RELAY_ON);
+      digitalWrite(led_status2, RELAY_ON);
+      digitalWrite(led_status3, RELAY_ON);
+      digitalWrite(led_status4, RELAY_ON);
+      digitalWrite(led_status5, RELAY_ON);
+      setFan6(RELAY_ON);
+      Serial.println("ALARM: Suhu di luar batas!");
+      Serial.print("Batas: ");
+      Serial.print(lowerLimit);
+      Serial.print("°C - ");
+      Serial.print(upperLimit);
+      Serial.println("°C");
     }
   } else {
-    // Suhu normal
-    alarmTimerStart = 0; // Reset timer
     if (alarmTriggered) {
       alarmTriggered = false;
       // Semua LED mati bersamaan saat alarm clear
@@ -816,203 +806,123 @@ void applyManualControl() {
   Serial.println(manual_fan6);
 }
 
-// Helper untuk cek logic Cooling (Menu 03 + 11 + 12)
-void checkCooling() {
-  if (currentTemp >= coolTemp) {
-    // Suhu >= Cool Temp, minta COOL ON
-    if (!coolingActiveState) {
-      // Jika sebelumnya OFF, cek timer ON Delay
-      if (coolTimerStart == 0) {
-        coolTimerStart = millis(); // Mulai hitung
-      } else {
-        // Cek apakah delay sudah terpenuhi
-        if (millis() - coolTimerStart >= (unsigned long)coolOnDelay * 1000UL) {
-          coolingActiveState = true;
-          coolTimerStart = 0; // Reset timer
-        }
-      }
-    } else {
-      // Jika sudah ON, reset timer (antisipasi switching state)
-      coolTimerStart = 0;
-    }
-  } else {
-    // Suhu < Cool Temp, minta COOL OFF
-    if (coolingActiveState) {
-      // Jika sebelumnya ON, cek timer OFF Delay
-      if (coolTimerStart == 0) {
-        coolTimerStart = millis(); // Mulai hitung
-      } else {
-        // Cek apakah delay sudah terpenuhi
-        if (millis() - coolTimerStart >= (unsigned long)coolOffDelay * 1000UL) {
-          coolingActiveState = false;
-          coolTimerStart = 0; // Reset timer
-        }
-      }
-    } else {
-      // Jika sudah OFF, reset timer
-      coolTimerStart = 0;
-    }
-  }
-}
-
-// Logic Intermittent (Timer ON/OFF) untuk Kipas 1
-void updateIntermittent() {
-  // Jika fitur disabled (salah satu 0), paksa OFF
-  if (timerOn == 0 || timerOff == 0) {
-    timerActive = false;
-    return;
-  }
-
-  unsigned long now = millis();
-  unsigned long elapsed = now - timerStartTime;
-
-  if (timerActive) {
-    // Sedang ON, cek durasi ON (menit -> ms)
-    if (elapsed >= (unsigned long)timerOn * 60000UL) {
-      timerActive = false;
-      timerStartTime = now;
-      Serial.println("Intermittent Fan 1: Switch to OFF");
-    }
-  } else {
-    // Sedang OFF, cek durasi OFF
-    if (elapsed >= (unsigned long)timerOff * 60000UL) {
-      timerActive = true;
-      timerStartTime = now;
-      Serial.println("Intermittent Fan 1: Switch to ON");
-    }
-  }
-}
-
 // Kontrol suhu berdasarkan setpoint dengan logika bertingkat
 void temperatureControl() {
-  updateIntermittent(); // Update timer state for Fan 1
-  checkCooling();       // Update cooling state (Menu 03 + Delays)
-
   float diff = currentTemp - setpointTemp;
 
   // ========================================
-  // CONTROL KOOLING (Kipas 1-6) - Berbasis Diff Suhu
+  // COOLING: Kipas 1-6 bertingkat + Relay Cooling
   // ========================================
-
-  // Reset semua fan ke OFF dulu (default), nanti di-Override jika ON
-  bool f1 = false;
-  bool f2 = false;
-  bool f3 = false;
-  bool f4 = false;
-  bool f5 = false;
-  bool f6 = false;
-
-  if (diff >= 6.0) {
+  if (diff >= 7.0) {
+    // +7°C atau lebih: Semua kipas ON + Relay Cooling ON
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    setFan6(RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_ON); // Main Cooling ON
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 7 (All fans + Main Cooling ON)");
+  } else if (diff >= 6.0) {
     // +6°C: Semua kipas ON
-    f1 = true;
-    f2 = true;
-    f3 = true;
-    f4 = true;
-    f5 = true;
-    f6 = true;
-    Serial.println("Status: FANS LEVEL 6 (All fans)");
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    setFan6(RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 6 (All fans ON)");
   } else if (diff >= 5.0) {
     // +5°C: Kipas 1-5 ON
-    f1 = true;
-    f2 = true;
-    f3 = true;
-    f4 = true;
-    f5 = true;
-    f6 = false;
-    Serial.println("Status: FANS LEVEL 5");
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_ON);
+    setFan6(RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 5");
   } else if (diff >= 4.0) {
     // +4°C: Kipas 1-4 ON
-    f1 = true;
-    f2 = true;
-    f3 = true;
-    f4 = true;
-    f5 = false;
-    f6 = false;
-    Serial.println("Status: FANS LEVEL 4");
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_ON);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 4");
   } else if (diff >= 3.0) {
     // +3°C: Kipas 1-3 ON
-    f1 = true;
-    f2 = true;
-    f3 = true;
-    f4 = false;
-    f5 = false;
-    f6 = false;
-    Serial.println("Status: FANS LEVEL 3");
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_ON);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 3");
   } else if (diff >= 2.0) {
     // +2°C: Kipas 1-2 ON
-    f1 = true;
-    f2 = true;
-    f3 = false;
-    f4 = false;
-    f5 = false;
-    f6 = false;
-    Serial.println("Status: FANS LEVEL 2");
+    digitalWrite(led_status1, RELAY_ON);
+    digitalWrite(led_status2, RELAY_ON);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 2");
   } else if (diff >= 1.0) {
     // +1°C: Kipas 1 ON
-    f1 = true;
-    f2 = false;
-    f3 = false;
-    f4 = false;
-    f5 = false;
-    f6 = false;
-    Serial.println("Status: FANS LEVEL 1");
-  } else {
-    // Diff < 1.0 (Optimal / Heating)
-    // Fan 1 ikut Intermittent (Timer ON/OFF)
-    if (timerOn > 0 && timerOff > 0 && timerActive)
-      f1 = true;
-    Serial.println("Status: FANS IDLE / INTERMITTENT");
-  }
-
-  // ========================================
-  // CONTROL HEATING (Heater) - Berbasis Heat Temp (Menu 02)
-  // ========================================
-  bool heaterState = false;
-  if (currentTemp <= heatTemp) {
-    heaterState = true;
-    Serial.println("Status: HEATER ON");
-  }
-
-  // ========================================
-  // EKSEKUSI KE RELAY (Dengan Cek Enable/Disable)
-  // ========================================
-
-  // Kipas 1 (Menu 04 Enable)
-  if (fan1_enabled)
-    digitalWrite(led_status1, f1 ? RELAY_ON : RELAY_OFF);
-  else
-    digitalWrite(led_status1, RELAY_OFF);
-
-  // Kipas 2 (Menu 05 Enable)
-  if (fan2_enabled)
-    digitalWrite(led_status2, f2 ? RELAY_ON : RELAY_OFF);
-  else
+    digitalWrite(led_status1, RELAY_ON);
     digitalWrite(led_status2, RELAY_OFF);
-
-  // Kipas 3 (Menu 06 Enable)
-  if (fan3_enabled)
-    digitalWrite(led_status3, f3 ? RELAY_ON : RELAY_OFF);
-  else
     digitalWrite(led_status3, RELAY_OFF);
-
-  // Kipas 4 (Menu 07 Enable)
-  if (fan4_enabled)
-    digitalWrite(led_status4, f4 ? RELAY_ON : RELAY_OFF);
-  else
     digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(relay_heater, RELAY_OFF);
+    Serial.println("Status: COOLING LEVEL 1");
+  }
 
-  // Kipas 5 & 6 (Belum ada menu enable khusus, anggap enabled)
-  digitalWrite(led_status5, f5 ? RELAY_ON : RELAY_OFF);
-  setFan6(f6 ? RELAY_ON : RELAY_OFF);
+  // ========================================
+  // HEATING: Heater bertingkat
+  // ========================================
+  else if (diff <= -2.0) {
+    // -2°C atau lebih dingin: Heater ON
+    digitalWrite(relay_heater, RELAY_ON);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(led_status1, RELAY_OFF);
+    digitalWrite(led_status2, RELAY_OFF);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    Serial.println("Status: HEATING (Heater ON)");
+  }
 
-  // Heater (Menu 02)
-  digitalWrite(relay_heater, heaterState ? RELAY_ON : RELAY_OFF);
-
-  // Cooler (Menu 03 Control + Menu 11/12 Delay)
-  // Independent dari logic Kipas
-  digitalWrite(relay_cooler, coolingActiveState ? RELAY_ON : RELAY_OFF);
-  if (coolingActiveState)
-    Serial.println("Status: COOLER ON");
+  // ========================================
+  // OPTIMAL: Semua OFF
+  // ========================================
+  else {
+    // Suhu dalam range optimal (-2 sampai +1)
+    digitalWrite(relay_heater, RELAY_OFF);
+    digitalWrite(relay_cooler, RELAY_OFF);
+    digitalWrite(led_status1, RELAY_OFF);
+    digitalWrite(led_status2, RELAY_OFF);
+    digitalWrite(led_status3, RELAY_OFF);
+    digitalWrite(led_status4, RELAY_OFF);
+    digitalWrite(led_status5, RELAY_OFF);
+    setFan6(RELAY_OFF);
+    Serial.println("Status: OPTIMAL (All OFF)");
+  }
 }
 
 // Tampilkan menu di display (Authentic Version)

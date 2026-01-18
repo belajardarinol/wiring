@@ -325,7 +325,8 @@
 
       .display.small {
         font-size: 1.5em;
-        min-width: 60px;
+        min-width: 70px;
+        padding: 10px;
       }
 
       .key {
