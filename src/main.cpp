@@ -324,6 +324,8 @@ void setup() {
 
     // Route for root / web page
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+      if (!request->authenticate("admin", "semangat22"))
+        return request->requestAuthentication();
       request->send_P(200, "text/html", index_html);
     });
 
@@ -366,6 +368,9 @@ void setup() {
       json += "}";
 
       json += "}";
+      // Authentication for status? Optional, but good for security.
+      // if(!request->authenticate("admin", "semangat22")) return
+      // request->requestAuthentication();
       request->send(200, "application/json", json);
     });
 
@@ -405,20 +410,24 @@ void setup() {
       }
     });
 
-    // Handle JSON body for /config (Advanced)
+    // API: Config (Authenticated)
     server.on(
         "/config", HTTP_POST,
-        [](AsyncWebServerRequest *request) { request->send(200); }, NULL,
+        [](AsyncWebServerRequest *request) {
+          if (!request->authenticate("admin", "semangat22"))
+            return request->requestAuthentication();
+          request->send(200);
+        },
+        NULL,
         [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
            size_t index, size_t total) {
-          // Simple body parser
+          // Body parser logic same as before...
           String body = "";
           for (size_t i = 0; i < len; i++)
             body += (char)data[i];
 
           int idx = body.indexOf("\"setpoint\"");
           if (idx >= 0) {
-            // Rudimentary parse
             int start = body.indexOf(":", idx) + 1;
             float val = body.substring(start).toFloat();
             if (val >= 20 && val <= 100) {
@@ -433,6 +442,8 @@ void setup() {
     server.on(
         "/manual", HTTP_POST,
         [](AsyncWebServerRequest *request) {
+          if (!request->authenticate("admin", "semangat22"))
+            return request->requestAuthentication();
           request->send(200, "application/json", "{\"ok\":true}");
         },
         NULL,
@@ -558,13 +569,13 @@ bool validateAndSaveInput(String code, int menuNum) {
 
   case 8: // Fan 5 (0=OFF, 1=ON)
     if (codeNum == 0 || codeNum == 1) {
-      // Logic fan 5 enabled belum ada variable khususnya, kita asumsikan pakai
-      // slot dummy atau tambah nanti. Sesuai kode lama: fan5 belum ada, kode
-      // lama case 8 adalah Timer ON. Kita geser Timer ON ke menu 9. Untuk
-      // sementara Fan 5 kita simpan di fan4_enabled atau buat baru, atau
-      // abaikan dulu jika belum ada relay fisik. ALERT: Kode relay hanya sampai
-      // Fan 4 (fan4_enabled). Mari mapping ke variable yang ada dulu agar tidak
-      // error compile.
+      // Logic fan 5 enabled belum ada variable khususnya, kita asumsikan
+      // pakai slot dummy atau tambah nanti. Sesuai kode lama: fan5 belum ada,
+      // kode lama case 8 adalah Timer ON. Kita geser Timer ON ke menu 9.
+      // Untuk sementara Fan 5 kita simpan di fan4_enabled atau buat baru,
+      // atau abaikan dulu jika belum ada relay fisik. ALERT: Kode relay hanya
+      // sampai Fan 4 (fan4_enabled). Mari mapping ke variable yang ada dulu
+      // agar tidak error compile.
       valid = true;
     }
     break;
@@ -1324,8 +1335,8 @@ void loop() {
           showMenu();
         }
       } else {
-        // Di mode browse/idle, ENTER bisa dipakai untuk shortcut navigasi (jika
-        // logika 0 dipakai)
+        // Di mode browse/idle, ENTER bisa dipakai untuk shortcut navigasi
+        // (jika logika 0 dipakai)
         if (inputCode.length() > 0 && currentMenuState == MENU_BROWSE) {
           // Jump to menu number
           int target = inputCode.toInt();
