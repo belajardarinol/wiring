@@ -508,23 +508,22 @@ bool validateAndSaveInput(String code, int menuNum) {
   bool valid = false;
 
   switch (menuNum) {
-  case 1: // Setpoint Suhu (20-100)
+
+  case 1: // Clock (Skip for now)
+    // No action for clock setting yet in this version without RTC logic
+    valid = true;
+    break;
+
+  case 2: // Required Temp (Setpoint) (20-100)
     if (codeNum >= 20 && codeNum <= 100) {
       setpointTemp = (float)codeNum;
       valid = true;
     }
     break;
 
-  case 2: // Heat Temperature (20-100)
+  case 3: // Heat (20-100)
     if (codeNum >= 20 && codeNum <= 100) {
       heatTemp = (float)codeNum;
-      valid = true;
-    }
-    break;
-
-  case 3: // Cool Temperature (20-100)
-    if (codeNum >= 20 && codeNum <= 100) {
-      coolTemp = (float)codeNum;
       valid = true;
     }
     break;
@@ -557,67 +556,73 @@ bool validateAndSaveInput(String code, int menuNum) {
     }
     break;
 
-  case 8: // Timer ON (0-99 menit)
+  case 8: // Fan 5 (0=OFF, 1=ON)
+    if (codeNum == 0 || codeNum == 1) {
+      // Logic fan 5 enabled belum ada variable khususnya, kita asumsikan pakai
+      // slot dummy atau tambah nanti. Sesuai kode lama: fan5 belum ada, kode
+      // lama case 8 adalah Timer ON. Kita geser Timer ON ke menu 9. Untuk
+      // sementara Fan 5 kita simpan di fan4_enabled atau buat baru, atau
+      // abaikan dulu jika belum ada relay fisik. ALERT: Kode relay hanya sampai
+      // Fan 4 (fan4_enabled). Mari mapping ke variable yang ada dulu agar tidak
+      // error compile.
+      valid = true;
+    }
+    break;
+
+  case 9: // Fan On Time (0-99 menit) -> (Variable: timerOn)
     if (codeNum >= 0 && codeNum <= 99) {
       timerOn = codeNum;
       valid = true;
     }
     break;
 
-  case 9: // Timer OFF (0-99 menit)
+  case 10: // Fan Off Time (0-99 menit) -> (Variable: timerOff)
     if (codeNum >= 0 && codeNum <= 99) {
       timerOff = codeNum;
       valid = true;
     }
     break;
 
-  case 10: // Humidity Setpoint (0-99%)
+  case 11: // Humidity Set (0-99%) -> (Variable: humiditySetpoint)
     if (codeNum >= 0 && codeNum <= 99) {
       humiditySetpoint = (float)codeNum;
       valid = true;
     }
     break;
 
-  case 11: // Cool On Delay (0-99 detik)
+  case 12: // Cool Temp (20-50 C) -> (Variable: coolTemp)
+    if (codeNum >= 20 && codeNum <= 100) { // Range 20-100 biar aman
+      coolTemp = (float)codeNum;
+      valid = true;
+    }
+    break;
+
+  case 13: // Cool On Time (0-99 det/menit) -> (Variable: coolOnDelay ? atau
+           // kita perlu variable khusus?)
+    // Di kode lama: coolOnDelay. Kita pakai itu.
     if (codeNum >= 0 && codeNum <= 99) {
       coolOnDelay = codeNum;
       valid = true;
     }
     break;
 
-  case 12: // Cool Off Delay (0-99 detik)
+  case 14: // Cool Off Time -> (Variable: coolOffDelay)
     if (codeNum >= 0 && codeNum <= 99) {
       coolOffDelay = codeNum;
       valid = true;
     }
     break;
 
-  case 13: // Low Alarm (20-100, harus < upperLimit)
-    if (codeNum >= 20 && codeNum <= 100 && codeNum < upperLimit) {
+  case 15: // Low Alarm -> (Variable: lowerLimit)
+    if (codeNum >= 0 && codeNum <= 100 && codeNum < upperLimit) {
       lowerLimit = (float)codeNum;
       valid = true;
     }
     break;
 
-  case 14: // High Alarm (20-100, harus > lowerLimit)
-    if (codeNum >= 20 && codeNum <= 100 && codeNum > lowerLimit) {
+  case 16: // High Alarm -> (Variable: upperLimit)
+    if (codeNum >= 0 && codeNum <= 100 && codeNum > lowerLimit) {
       upperLimit = (float)codeNum;
-      valid = true;
-    }
-    break;
-
-  case 15: // Alarm Delay (0-99 detik)
-    if (codeNum >= 0 && codeNum <= 99) {
-      alarmDelay = codeNum;
-      valid = true;
-    }
-    break;
-
-  case 16: // Display Brightness (0-15)
-    if (codeNum >= 0 && codeNum <= 15) {
-      displayBrightness = codeNum;
-      display1.setBrightness(displayBrightness);
-      display2.setBrightness(displayBrightness);
       valid = true;
     }
     break;
@@ -1113,57 +1118,58 @@ void showMenu() {
   bool isBool = false;
 
   switch (currentMenuNumber) {
-  case 1:
+  case 1:          // Clock
+    valToShow = 0; // Temp placeholder
+    break;
+  case 2: // Required Temp
     valToShow = setpointTemp;
     break;
-  case 2:
+  case 3: // Heat
     valToShow = heatTemp;
     break;
-  case 3:
-    valToShow = coolTemp;
-    break;
-  case 4:
+  case 4: // Fan 1
     valToShow = fan1_enabled;
     isBool = true;
     break;
-  case 5:
+  case 5: // Fan 2
     valToShow = fan2_enabled;
     isBool = true;
     break;
-  case 6:
+  case 6: // Fan 3
     valToShow = fan3_enabled;
     isBool = true;
     break;
-  case 7:
+  case 7: // Fan 4
     valToShow = fan4_enabled;
     isBool = true;
     break;
-  case 8:
+  case 8:          // Fan 5
+    valToShow = 0; // Placeholder for Fan 5 relay
+    isBool = true;
+    break;
+  case 9: // Fan On Time
     valToShow = timerOn;
     break;
-  case 9:
+  case 10: // Fan Off Time
     valToShow = timerOff;
     break;
-  case 10:
+  case 11: // Humidity Set
     valToShow = humiditySetpoint;
     break;
-  case 11:
+  case 12: // Cool Temp
+    valToShow = coolTemp;
+    break;
+  case 13: // Cool On Time
     valToShow = coolOnDelay;
     break;
-  case 12:
+  case 14: // Cool Off Time
     valToShow = coolOffDelay;
     break;
-  case 13:
+  case 15: // Low Alarm
     valToShow = lowerLimit;
     break;
-  case 14:
+  case 16: // High Alarm
     valToShow = upperLimit;
-    break;
-  case 15:
-    valToShow = alarmDelay;
-    break;
-  case 16:
-    valToShow = displayBrightness;
     break;
   case 17:
     valToShow = waterClock;
