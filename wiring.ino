@@ -6,7 +6,7 @@
 #include <DHT.h>
 #include <EEPROM.h>
 // TEMPORARY: Disabled for LCD testing without ESP32 package
-// #include <HTTPClient.h>
+#include <HTTPClient.h>
 #include <I2CKeyPad.h>
 #include <Keypad.h>
 #include <TM1637Display.h>
@@ -15,18 +15,18 @@
 // ========================================
 // WiFi Configuration - DISABLED FOR TESTING
 // ========================================
-// #include "webpage.h"
-// #include <AsyncTCP.h>
-// #include <ESPAsyncWebServer.h>
-// #include <WiFi.h>
+#include "webpage.h"
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WiFi.h>
 
 // TEMPORARY: WiFi disabled for LCD testing
-// const char *ssid = "Sejahtera";
-// const char *password = "presiden sekarang";
-// AsyncWebServer server(80);
-// const char *apiTelemetry = "https://malik.kukode.com/api/telemetry.php";
-// const char *apiConfig = "https://malik.kukode.com/api/config.php";
-// const char *apiManual = "https://malik.kukode.com/api/manual.php";
+const char *ssid = "Sejahtera";
+const char *password = "presiden sekarang";
+AsyncWebServer server(80);
+const char *apiTelemetry = "https://malik.kukode.com/api/telemetry.php";
+const char *apiConfig = "https://malik.kukode.com/api/config.php";
+const char *apiManual = "https://malik.kukode.com/api/manual.php";
 
 // ========================================
 // Pin Definitions
@@ -308,7 +308,6 @@ void setup() {
   // ========================================
   // WiFi Setup - DISABLED FOR TESTING
   // ========================================
-  /*
   Serial.println("Connecting to WiFi...");
   WiFi.begin(ssid, password);
   int retry = 0;
@@ -497,7 +496,6 @@ void setup() {
   } else {
     Serial.println("\nWiFi Connection Failed!");
   }
-  */
 }
 
 // ========================================
@@ -665,7 +663,6 @@ bool validateAndSaveInput(String code, int menuNum) {
   return valid;
 }
 
-/*
 void postTelemetry(float temp, float humidity, float setpoint) {
   if (WiFi.status() != WL_CONNECTED)
     return;
@@ -680,9 +677,7 @@ void postTelemetry(float temp, float humidity, float setpoint) {
   http.POST(payload);
   http.end();
 }
-*/
 
-/*
 void fetchConfig() {
   if (WiFi.status() != WL_CONNECTED)
     return;
@@ -718,7 +713,6 @@ void fetchConfig() {
   }
   http.end();
 }
-*/
 
 int parseJsonInt(String body, const char *key, int defaultVal) {
   int idx = body.indexOf(key);
@@ -740,7 +734,6 @@ int parseJsonInt(String body, const char *key, int defaultVal) {
   return defaultVal;
 }
 
-/*
 void fetchManualControl() {
   if (WiFi.status() != WL_CONNECTED)
     return;
@@ -768,7 +761,6 @@ void fetchManualControl() {
   }
   http.end();
 }
-*/
 
 void saveConfig() {
   config.magic = CONFIG_MAGIC;
@@ -1433,22 +1425,21 @@ void loop() {
     }
   }
   unsigned long now = millis();
-  /*
-    if (WiFi.status() == WL_CONNECTED) {
-      if (now - lastPostTime >= postInterval) {
-        postTelemetry(currentTemp, currentHumidity, setpointTemp);
-        lastPostTime = now;
-      }
-      if (now - lastConfigFetchTime >= configFetchInterval) {
-        fetchConfig();
-        lastConfigFetchTime = now;
-      }
-      if (now - lastManualFetchTime >= manualFetchInterval) {
-        fetchManualControl();
-        lastManualFetchTime = now;
-      }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (now - lastPostTime >= postInterval) {
+      postTelemetry(currentTemp, currentHumidity, setpointTemp);
+      lastPostTime = now;
     }
-  */
+    if (now - lastConfigFetchTime >= configFetchInterval) {
+      fetchConfig();
+      lastConfigFetchTime = now;
+    }
+    if (now - lastManualFetchTime >= manualFetchInterval) {
+      fetchManualControl();
+      lastManualFetchTime = now;
+    }
+  }
 
   delay(50); // Small delay untuk stabilitas
 }
