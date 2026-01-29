@@ -379,7 +379,8 @@ void setup() {
     server.on(
         "/config", HTTP_POST,
         [](AsyncWebServerRequest *request) {
-          if (!request->authenticate("admin", "semangat22"))
+          if (!request->authenticate("", "semangat22") &&
+              !request->authenticate("admin", "semangat22"))
             return request->requestAuthentication();
           request->send(200);
         },
@@ -407,7 +408,8 @@ void setup() {
     server.on(
         "/manual", HTTP_POST,
         [](AsyncWebServerRequest *request) {
-          if (!request->authenticate("admin", "semangat22"))
+          if (!request->authenticate("", "semangat22") &&
+              !request->authenticate("admin", "semangat22"))
             return request->requestAuthentication();
           request->send(200, "application/json", "{\"ok\":true}");
         },
