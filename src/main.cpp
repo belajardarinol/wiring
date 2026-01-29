@@ -324,9 +324,7 @@ void setup() {
 
     // Route for root / web page
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-      if (!request->authenticate("admin", "semangat22"))
-        return request->requestAuthentication();
-      request->send_P(200, "text/html", index_html);
+      request->send(200, "text/html", index_html);
     });
 
     // API: Status (Telemetry)
@@ -376,39 +374,6 @@ void setup() {
 
     // API: Config (Update Setpoint)
     // Expects JSON: { "setpoint": 30.5 }
-    server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request) {
-      // NOTE: Body parsing handled in onBody, but for simplicity with
-      // AsyncWebServer, we need to register an onBody handler or use parameters
-      // if sent as form data. Since fetch sends raw JSON body, we need a body
-      // handler. For simplicity in this non-blocking environment, we'll assume
-      // the client can also send query params or we parse the body in a
-      // specific handler. However, to keep it simple without external JSON lib
-      // logic in the request handler:
-      request->send(
-          200, "application/json",
-          "{\"status\":\"ok\", \"message\":\"Send data as query param "
-          "?setpoint=XX for simplicity or implement body parser\"}");
-    });
-
-    // Simplification: Allow updating setpoint via GET /config?setpoint=30
-    // OR create a specific body handler is required.
-    // Let's implement the GET/query param fallback which is robust.
-    server.on("/update_config", HTTP_GET, [](AsyncWebServerRequest *request) {
-      if (request->hasParam("setpoint")) {
-        float val = request->getParam("setpoint")->value().toFloat();
-        if (val >= 20 && val <= 100) {
-          setpointTemp = val;
-          saveConfig();
-          request->send(200, "application/json", "{\"status\":\"ok\"}");
-        } else {
-          request->send(400, "application/json",
-                        "{\"status\":\"error\",\"message\":\"Out of range\"}");
-        }
-      } else {
-        request->send(400, "application/json",
-                      "{\"status\":\"error\",\"message\":\"Missing param\"}");
-      }
-    });
 
     // API: Config (Authenticated)
     server.on(
