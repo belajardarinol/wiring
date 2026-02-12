@@ -83,8 +83,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         <h2>🎛️ Control Panel</h2>
         <form class="control-form" id="setpointForm">
           <div class="form-group">
-            <label for="newSetpoint">Set Temperature (20-100°C)</label>
-            <input type="number" id="newSetpoint" name="setpoint" min="20" max="100" step="0.1"
+            <label for="newSetpoint">Set Temperature (0-99°C)</label>
+            <input type="number" id="newSetpoint" name="setpoint" min="0" max="99" step="0.1"
               placeholder="Enter setpoint">
           </div>
           <button type="submit" class="btn">Update Setpoint</button>
@@ -92,30 +92,34 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div id="formMessage"></div>
       </div>
 
-      <!-- Cooling Status (Kipas 1-6) -->
+      <!-- Cooling Status (Fans 1-6) -->
       <div class="card">
         <h2>❄️ Cooling Status (Fans)</h2>
         <div class="status-grid">
-          <div class="status-item"> <div class="led fan" id="fan1"></div> <span>Fan 1 (+1°C)</span> </div>
-          <div class="status-item"> <div class="led fan" id="fan2"></div> <span>Fan 2 (+2°C)</span> </div>
-          <div class="status-item"> <div class="led fan" id="fan3"></div> <span>Fan 3 (+3°C)</span> </div>
-          <div class="status-item"> <div class="led fan" id="fan4"></div> <span>Fan 4 (+4°C)</span> </div>
-          <div class="status-item"> <div class="led fan" id="fan5"></div> <span>Fan 5 (+5°C)</span> </div>
-          <div class="status-item"> <div class="led fan" id="fan6"></div> <span>Fan 6 (+6°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan1"></div> <span id="fan1Label">Fan 1 (+1.0°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan2"></div> <span id="fan2Label">Fan 2 (+2.0°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan3"></div> <span id="fan3Label">Fan 3 (+3.0°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan4"></div> <span id="fan4Label">Fan 4 (+4.0°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan5"></div> <span id="fan5Label">Fan 5 (+5.0°C)</span> </div>
+          <div class="status-item"> <div class="led fan" id="fan6"></div> <span>Fan 6 (Extra)</span> </div>
+        </div>
+        <div class="metric" style="margin-top: 15px;">
+          <span class="metric-label">Humidity Setpoint</span>
+          <span class="metric-value" style="font-size: 1.2em;" id="humidSetpoint">--</span>
         </div>
       </div>
 
-      <!-- Heating Status (Heater 7-8) -->
+      <!-- Heating Status -->
       <div class="card">
-        <h2>🔥 Heating Status</h2>
+        <h2>🔥 Heating & Cooling Status</h2>
         <div class="status-grid">
           <div class="status-item">
             <div class="led heater" id="heater7"></div>
-            <span>Heater 7 (-2°C)</span>
+            <span id="heaterLabel">Heater (SP - 1.0°C)</span>
           </div>
           <div class="status-item">
             <div class="led fan" id="cooling"></div>
-            <span>Cooling (-4°C)</span>
+            <span id="coolingLabel">Cooling (≥32°C)</span>
           </div>
         </div>
       </div>
@@ -250,15 +254,43 @@ const char index_html[] PROGMEM = R"rawliteral(
       document.getElementById('heater7').classList.toggle('on', isOn(s.heater7));
       document.getElementById('cooling').classList.toggle('on', isOn(s.cooling));
     
+      // Update fan differential labels from config
+      if (config.fan1_diff !== undefined) {
+        document.getElementById('fan1Label').textContent = 'Fan 1 (+' + config.fan1_diff.toFixed(1) + '°C)';
+        document.getElementById('fan2Label').textContent = 'Fan 2 (+' + config.fan2_diff.toFixed(1) + '°C)';
+        document.getElementById('fan3Label').textContent = 'Fan 3 (+' + config.fan3_diff.toFixed(1) + '°C)';
+        document.getElementById('fan4Label').textContent = 'Fan 4 (+' + config.fan4_diff.toFixed(1) + '°C)';
+        document.getElementById('fan5Label').textContent = 'Fan 5 (+' + config.fan5_diff.toFixed(1) + '°C)';
+      }
+
+      // Update heater & cooling labels
+      if (config.heatDiff !== undefined) {
+        document.getElementById('heaterLabel').textContent = 'Heater (SP - ' + config.heatDiff.toFixed(1) + '°C)';
+      }
+      if (config.coolTemp !== undefined) {
+        document.getElementById('coolingLabel').textContent = 'Cooling (≥' + config.coolTemp.toFixed(1) + '°C)';
+      }
+
+      // Update humidity setpoint
+      if (config.humiditySetpoint !== undefined) {
+        document.getElementById('humidSetpoint').textContent = config.humiditySetpoint.toFixed(0) + '%';
+      }
+
       // Update Alarm
       const temp = telemetry.temp || 0;
       const lowerLimit = config.lowerLimit || 25;
       const upperLimit = config.upperLimit || 35;
-      const alarmActive = temp < lowerLimit || temp > upperLimit;
+      const alarmType = config.alarmType !== undefined ? config.alarmType : 3;
+
+      let alarmActive = false;
+      if (alarmType === 1) alarmActive = (temp < lowerLimit);
+      else if (alarmType === 2) alarmActive = (temp > upperLimit);
+      else if (alarmType === 3) alarmActive = (temp < lowerLimit || temp > upperLimit);
 
       document.getElementById('alarm').classList.toggle('on', alarmActive);
-      document.getElementById('alarmText').textContent = alarmActive ? 'ALARM ACTIVE!' : 'Normal';
-      document.getElementById('alarmRange').textContent = lowerLimit + '°C - ' + upperLimit + '°C';
+      document.getElementById('alarmText').textContent = alarmActive ? 'ALARM ACTIVE!' : 
+        (alarmType === 0 ? 'Alarm Disabled' : 'Normal');
+      document.getElementById('alarmRange').textContent = lowerLimit.toFixed(1) + '°C - ' + upperLimit.toFixed(1) + '°C';
 
       // System status
       document.getElementById('systemStatus').classList.add('on');
@@ -277,8 +309,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       const setpoint = parseFloat(document.getElementById('newSetpoint').value);
       const messageDiv = document.getElementById('formMessage');
 
-      if (setpoint < 20 || setpoint > 100) {
-        messageDiv.innerHTML = '<div class="alert error">Setpoint must be between 20-100°C</div>';
+      if (setpoint < 0 || setpoint > 99) {
+        messageDiv.innerHTML = '<div class="alert error">Setpoint must be between 0-99°C</div>';
         return;
       }
 
